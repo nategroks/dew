@@ -265,7 +265,18 @@ static void draw_list(App *a)
 
 static const char GLYPHS[] = "@#%*&10SE";
 
-static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director *d)
+/* The plant (if any) whose box, widened for oscillators, holds board cell (x, y). */
+static const GardenBox *box_at(const GardenBox *boxes, size_t n, int x, int y)
+{
+    for (size_t i = 0; i < n; i++)
+        if (x >= boxes[i].x - 3 && x < boxes[i].x + boxes[i].w + 3 && y >= boxes[i].y - 3 &&
+            y < boxes[i].y + boxes[i].h + 3)
+            return &boxes[i];
+    return NULL;
+}
+
+static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director *d,
+                       const GardenBox *boxes, size_t nboxes)
 {
     const PaletteRGB *p = &a->rgb;
     if (in.w <= 0 || in.h <= 0)
@@ -303,7 +314,10 @@ static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director
                 bits = bc.bits;
                 if (bits) {
                     int b = palette_age_bucket(idle && bc.age > 6 ? 6 : bc.age);
+                    const GardenBox *gb = nboxes ? box_at(boxes, nboxes, sx * 2, cy * 4 + 1) : NULL;
                     fg = bc.dying                         ? p->dying
+                       : gb                               ? p->garden[gb->pair][garden_shade(
+                                                                gb, sx * 2, cy * 4 + 1, a->dir.frame)]
                        : d && d->mood == MOOD_PAUSED      ? p->gray[bc.tint][b]
                                                           : p->life[bc.tint][b];
                 }
@@ -379,8 +393,9 @@ static void draw_life(App *a)
     status_text(a, status, sizeof status);
     rule_label(a->dir.life.rule, label, sizeof label);
     draw_box(a, r, NULL, status, label);
+    bool garden = a->dir.mood == MOOD_IDLE && !a->dir.sweeping;
     draw_board(a, &a->dir.life, (Rect){r.x + 1, r.y + 1, r.w - 2, r.h - 2},
-               a->dir.mood == MOOD_IDLE, &a->dir);
+               a->dir.mood == MOOD_IDLE, &a->dir, a->dir.boxes, garden ? a->dir.nboxes : 0);
 }
 
 /* ---- note, keys, overlays ---- */
@@ -513,7 +528,7 @@ static void draw_garden_view(App *a)
              a->garden.n == 1 ? "wave" : "waves");
     Rect r = {0, 0, a->cols, a->rows - 1};
     draw_box(a, r, title, NULL, NULL);
-    draw_board(a, &a->gview, (Rect){1, 1, r.w - 2, r.h - 2}, true, NULL);
+    draw_board(a, &a->gview, (Rect){1, 1, r.w - 2, r.h - 2}, true, NULL, a->gboxes, a->ngboxes);
     pen(p->ui[UI_DIM], p->bg, A_NORMAL);
     fill(a->rows - 1, 0, a->cols);
     put_text(a->rows - 1, 0, a->cols, "any key returns", 0);

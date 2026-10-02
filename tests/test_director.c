@@ -1,6 +1,8 @@
 #include "director.h"
 #include "test.h"
 
+#include <stdlib.h>
+
 static void small_garden(Garden *g)
 {
     garden_init(g);
@@ -39,6 +41,9 @@ static void test_idle_shows_garden(void)
     CHECK(life_population(&d.life) > 0);
     CHECK(same_board(&d.life, &ref));
     CHECK(!director_animating(&d));
+    GardenBox *boxes = NULL;
+    CHECK_INT(d.nboxes, garden_layout(&g, 96, 48, &boxes));
+    free(boxes);
     life_free(&ref);
     director_free(&d);
     garden_free(&g);

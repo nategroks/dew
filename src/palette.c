@@ -1,5 +1,7 @@
 #include "palette.h"
 
+#include <math.h>
+
 static const uint16_t AGE_EDGES[PAL_AGES] = {0, 1, 2, 4, 8, 16, 30, 60};
 
 int palette_age_bucket(uint16_t age)
@@ -26,9 +28,9 @@ static uint32_t rgb(int r, int g, int b)
 
 uint32_t rgb_mix(uint32_t a, uint32_t b, double f)
 {
-    int r = ch(a, 16) + (int)((ch(b, 16) - ch(a, 16)) * f + (f >= 0 ? 0.5 : -0.5));
-    int g = ch(a, 8) + (int)((ch(b, 8) - ch(a, 8)) * f + (f >= 0 ? 0.5 : -0.5));
-    int bl = ch(a, 0) + (int)((ch(b, 0) - ch(a, 0)) * f + (f >= 0 ? 0.5 : -0.5));
+    int r = ch(a, 16) + (int)lround((ch(b, 16) - ch(a, 16)) * f);
+    int g = ch(a, 8) + (int)lround((ch(b, 8) - ch(a, 8)) * f);
+    int bl = ch(a, 0) + (int)lround((ch(b, 0) - ch(a, 0)) * f);
     return rgb(r, g, bl);
 }
 
@@ -54,15 +56,20 @@ static uint32_t gray_of(uint32_t c)
 
 void palette_compute(PaletteRGB *p, const uint32_t n[16])
 {
-    const uint32_t tints[LIFE_TINTS] = {0, n[12], n[14], n[15], n[11], n[13]};
+    /* fleets: the five aurora colors, then the four frost ones; they fade in 4 steps */
+    const uint32_t tints[LIFE_TINTS] = {0, n[11], n[12], n[13], n[14], n[15], n[7], n[8], n[9], n[10]};
     for (int t = 0; t < LIFE_TINTS; t++)
         for (int b = 0; b < PAL_AGES; b++) {
-            int age = AGE_EDGES[b];
-            uint32_t c = t == 0 ? ramp(n, age)
-                                : rgb_mix(tints[t], n[10], (age / 50.0 > 1 ? 1 : age / 50.0) * 0.6);
+            uint32_t c = t == 0 ? ramp(n, AGE_EDGES[b]) : rgb_mix(tints[t], n[3], (b / 2) * 0.12);
             p->life[t][b] = c;
             p->gray[t][b] = gray_of(c);
         }
+    /* garden: curated aurora/frost gradients */
+    static const int PAIRS[GARDEN_PAIRS][2] = {{12, 15}, {14, 7}, {8, 10}, {13, 12}, {15, 9},
+                                               {11, 13}, {7, 8},  {9, 15}, {14, 13}};
+    for (int g = 0; g < GARDEN_PAIRS; g++)
+        for (int s = 0; s < PAL_AGES; s++)
+            p->garden[g][s] = rgb_mix(n[PAIRS[g][0]], n[PAIRS[g][1]], s / 7.0);
     p->dying = n[15];
     p->bg = n[0];
     p->band = rgb_mix(n[0], n[1], 0.55);

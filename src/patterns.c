@@ -52,6 +52,18 @@ bool pattern_get(const char *name, Pattern *out)
     return false;
 }
 
+int pattern_period(const char *name)
+{
+    static const struct {
+        const char *name;
+        int period;
+    } P[] = {{"blinker", 2}, {"toad", 2}, {"beacon", 2}, {"pulsar", 3}, {"penta", 15}};
+    for (size_t i = 0; i < sizeof P / sizeof *P; i++)
+        if (strcmp(P[i].name, name) == 0)
+            return P[i].period;
+    return 1;
+}
+
 void pattern_flip(Pattern *p, bool flip_x, bool flip_y)
 {
     for (int i = 0; i < p->n; i++) {

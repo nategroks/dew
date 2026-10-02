@@ -32,6 +32,8 @@ typedef struct {
     SweepThen then;
     uint8_t tint_cursor;
     Rule focus_rule; /* what focus waves run; Conway unless the user picks another */
+    GardenBox *boxes; /* where the garden's plants sit on the board, for coloring */
+    size_t nboxes;
 } Director;
 
 void director_init(Director *d, int w, int h, uint64_t seed, const Garden *g);

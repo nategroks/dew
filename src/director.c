@@ -3,6 +3,7 @@
 #include "patterns.h"
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define SWEEP_DELAY 40     /* frames between the burst and the break sweep */
@@ -27,14 +28,22 @@ void director_init(Director *d, int w, int h, uint64_t seed, const Garden *g)
 void director_free(Director *d)
 {
     life_free(&d->life);
+    free(d->boxes);
+    d->boxes = NULL;
+    d->nboxes = 0;
 }
 
 void director_show_garden(Director *d)
 {
     life_clear(&d->life);
     life_set_rule(&d->life, rule_conway());
-    if (d->garden)
+    free(d->boxes);
+    d->boxes = NULL;
+    d->nboxes = 0;
+    if (d->garden) {
         garden_stamp(d->garden, &d->life);
+        d->nboxes = garden_layout(d->garden, d->life.w, d->life.h, &d->boxes);
+    }
 }
 
 void director_resize(Director *d, int w, int h)
@@ -46,7 +55,7 @@ void director_resize(Director *d, int w, int h)
 
 static uint8_t next_tint(Director *d)
 {
-    d->tint_cursor = (uint8_t)(d->tint_cursor % 5 + 1);
+    d->tint_cursor = (uint8_t)(d->tint_cursor % (LIFE_TINTS - 1) + 1);
     return d->tint_cursor;
 }
 

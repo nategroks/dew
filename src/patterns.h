@@ -20,6 +20,7 @@ typedef struct {
  */
 bool pattern_get(const char *name, Pattern *out); /* false for an unknown name */
 void pattern_flip(Pattern *p, bool flip_x, bool flip_y);
+int pattern_period(const char *name); /* Conway oscillation period: 1 for still lifes */
 void pattern_stamp(Life *l, const Pattern *p, int x, int y, uint8_t tint, uint16_t age);
 
 #endif

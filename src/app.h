@@ -37,6 +37,8 @@ typedef struct App {
     Director dir;
     bool garden_view;
     Life gview; /* the full-screen garden while garden_view */
+    GardenBox *gboxes; /* its plants' positions, for coloring */
+    size_t ngboxes;
 
     Layout lay;
     int cols, rows;

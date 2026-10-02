@@ -2,6 +2,7 @@
 
 #include "patterns.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -88,14 +89,18 @@ bool garden_plant(Garden *g, Rng *r, const char *hhmm)
     snprintf(p->pattern, sizeof p->pattern, "%s", name);
     p->x = x;
     p->y = y;
-    p->tint = (uint8_t)(1 + n % 5);
+    int prev = g->n > 1 ? g->p[g->n - 2].tint : -1;
+    int pair = rng_range(r, GARDEN_PAIRS - (prev >= 0));
+    if (prev >= 0 && pair >= prev)
+        pair++; /* any pair but the previous plant's */
+    p->tint = (uint8_t)pair;
     return x >= 0;
 }
 
-void garden_stamp(const Garden *g, Life *l)
+size_t garden_layout(const Garden *g, int w, int h, GardenBox **out)
 {
-    Box *placed = xcalloc(g->n, sizeof *placed);
-    size_t np = 0;
+    GardenBox *boxes = xcalloc(g->n, sizeof *boxes);
+    size_t n = 0;
     for (size_t i = 0; i < g->n; i++) {
         const Plant *p = &g->p[i];
         if (p->x < 0)
@@ -103,18 +108,56 @@ void garden_stamp(const Garden *g, Life *l)
         Pattern pt;
         if (!pattern_get(p->pattern, &pt))
             continue;
-        Box b = {p->x * l->w / GARDEN_W, p->y * l->h / GARDEN_H, pt.w, pt.h};
-        if (b.x < 1 || b.y < 1 || b.x + b.w > l->w - 1 || b.y + b.h > l->h - 1)
+        GardenBox b = {p->x * w / GARDEN_W, p->y * h / GARDEN_H, pt.w, pt.h, p->tint,
+                       (uint8_t)pattern_period(p->pattern)};
+        if (b.x < 1 || b.y < 1 || b.x + b.w > w - 1 || b.y + b.h > h - 1)
             continue;
         bool ok = true;
-        for (size_t k = 0; ok && k < np; k++)
-            ok = !clash(b, placed[k], STAMP_PAD);
-        if (!ok)
-            continue;
-        pattern_stamp(l, &pt, b.x, b.y, p->tint, STAMP_AGE);
-        placed[np++] = b;
+        for (size_t k = 0; ok && k < n; k++)
+            ok = b.x >= boxes[k].x + boxes[k].w + STAMP_PAD || boxes[k].x >= b.x + b.w + STAMP_PAD ||
+                 b.y >= boxes[k].y + boxes[k].h + STAMP_PAD || boxes[k].y >= b.y + b.h + STAMP_PAD;
+        if (ok)
+            boxes[n++] = b;
     }
-    free(placed);
+    *out = boxes;
+    return n;
+}
+
+void garden_stamp(const Garden *g, Life *l)
+{
+    GardenBox *boxes;
+    size_t n = garden_layout(g, l->w, l->h, &boxes);
+    for (size_t i = 0; i < n; i++) {
+        /* boxes keep plant order, so find the plant by position */
+        for (size_t k = 0; k < g->n; k++) {
+            const Plant *p = &g->p[k];
+            Pattern pt;
+            if (p->x < 0 || !pattern_get(p->pattern, &pt))
+                continue;
+            if (p->x * l->w / GARDEN_W == boxes[i].x && p->y * l->h / GARDEN_H == boxes[i].y) {
+                pattern_stamp(l, &pt, boxes[i].x, boxes[i].y, p->tint, STAMP_AGE);
+                break;
+            }
+        }
+    }
+    free(boxes);
+}
+
+int garden_shade(const GardenBox *b, int x, int y, long frame)
+{
+    int span = b->w + b->h - 2;
+    double pos = span > 0 ? (double)((x - b->x) + (y - b->y)) / span : 0.5;
+    pos = pos < 0 ? 0 : pos > 1 ? 1 : pos;
+    double f;
+    if (b->period > 1) {
+        double phase = (double)((frame / 8) % b->period) / b->period;
+        double tri = 1 - fabs(2 * phase - 1);
+        f = pos * 0.5 + 0.5 * tri;
+    } else {
+        f = pos * 0.6 + 0.4 * (0.5 + 0.5 * sin(frame * 2 * M_PI / 160));
+    }
+    int s = (int)lround(f * 7);
+    return s < 0 ? 0 : s > 7 ? 7 : s;
 }
 
 char *garden_serialize(const Garden *g)
@@ -141,7 +184,7 @@ void garden_parse(Garden *g, const char *text)
             int x, y, tint;
             Pattern pt;
             if (sscanf(line, "%5s %15s %d %d %d", hhmm, name, &x, &y, &tint) == 5 &&
-                pattern_get(name, &pt) && tint >= 0 && tint < LIFE_TINTS && x >= -1 &&
+                pattern_get(name, &pt) && tint >= 0 && tint < GARDEN_PAIRS && x >= -1 &&
                 x < GARDEN_W && y >= -1 && y < GARDEN_H) {
                 Plant *p = push(g);
                 memcpy(p->hhmm, hhmm, sizeof hhmm);

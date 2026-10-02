@@ -1,5 +1,6 @@
 #include "braille.h"
 #include "config.h"
+#include "garden.h"
 #include "layout.h"
 #include "lineedit.h"
 #include "palette.h"
@@ -16,8 +17,13 @@ static void test_palette(void)
     CHECK_INT(p.life[0][0], 0xeceff4); /* newborn: snow */
     CHECK_INT(p.life[0][2], 0xebcb8b); /* age 2: yellow */
     CHECK_INT(p.life[0][PAL_AGES - 1], 0x434c5e); /* old: dim */
-    CHECK_INT(p.life[1][0], 0xd08770); /* tint 1: orange */
-    CHECK_INT(p.life[2][0], 0xa3be8c); /* tint 2: green */
+    CHECK_INT(p.life[1][0], 0xbf616a); /* fleet tints: the five aurora colors... */
+    CHECK_INT(p.life[4][0], 0xa3be8c);
+    CHECK_INT(p.life[9][0], 0x5e81ac); /* ...then the four frost colors */
+    CHECK_INT(p.garden[0][0], 0xd08770); /* garden pair 0: orange -> purple */
+    CHECK_INT(p.garden[0][7], 0xb48ead);
+    for (int g = 0; g < GARDEN_PAIRS; g++)
+        CHECK(p.garden[g][0] != p.garden[g][7]);
     CHECK_INT(p.bg, 0x2e3440);
     for (int t = 0; t < LIFE_TINTS; t++)
         for (int b = 0; b < PAL_AGES; b++) {
@@ -29,6 +35,24 @@ static void test_palette(void)
     CHECK_INT(palette_age_bucket(59), 6);
     CHECK_INT(palette_age_bucket(60000), 7);
     CHECK_INT(rgb_mix(0x000000, 0xffffff, 0.5), 0x808080);
+}
+
+/* Every distinct color must fit the 240 redefinable terminal slots, with room to spare. */
+static void test_color_budget(void)
+{
+    Config c;
+    config_defaults(&c);
+    PaletteRGB p;
+    palette_compute(&p, c.nord);
+    const uint32_t *all = (const uint32_t *)&p;
+    size_t n = sizeof p / sizeof(uint32_t), distinct = 0;
+    for (size_t i = 0; i < n; i++) {
+        bool seen = false;
+        for (size_t k = 0; k < i && !seen; k++)
+            seen = all[k] == all[i];
+        distinct += !seen;
+    }
+    CHECK(distinct <= 220);
 }
 
 static void test_nearest(void)
@@ -148,6 +172,7 @@ static void test_lineedit(void)
 void suite_view(void)
 {
     test_palette();
+    test_color_budget();
     test_nearest();
     test_braille();
     test_layout();

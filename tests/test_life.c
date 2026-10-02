@@ -200,6 +200,10 @@ static void test_patterns(void)
     CHECK(pattern_get("penta", &p));
     CHECK_INT(p.n, 12);
     CHECK(!pattern_get("spaceship-of-theseus", &p));
+    CHECK_INT(pattern_period("block"), 1);
+    CHECK_INT(pattern_period("blinker"), 2);
+    CHECK_INT(pattern_period("pulsar"), 3);
+    CHECK_INT(pattern_period("penta"), 15);
 }
 
 void suite_life(void)

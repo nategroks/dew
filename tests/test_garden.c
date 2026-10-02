@@ -27,7 +27,9 @@ static void test_no_overlap(void)
     CHECK_INT(g.n, 16);
     for (size_t i = 0; i < g.n; i++) {
         const Plant *a = &g.p[i];
-        CHECK_INT(a->tint, 1 + (int)(i + 1) % 5);
+        CHECK(a->tint < GARDEN_PAIRS); /* tint is the color pair */
+        if (i > 0)
+            CHECK(a->tint != g.p[i - 1].tint); /* never the same pair twice in a row */
         if (a->x < 0)
             continue;
         Pattern pa;
@@ -84,7 +86,7 @@ static void test_round_trip(void)
     garden_free(&h);
 
     garden_parse(&h, "garbage\n09:00 dragon 1 1 1\n09:00 block 999 1 1\n09:00 block 5 5 9\n"
-                     "09:00 block 5 5 2");
+                     "09:00 block 5 5 2");  /* pair 9 doesn't exist; old files used 1..5 */
     CHECK_INT(h.n, 1); /* only the last line is valid (no trailing newline is fine) */
     garden_free(&h);
     garden_free(&g);
@@ -128,6 +130,53 @@ static void test_stamp_is_stable(void)
     garden_free(&g);
 }
 
+static void test_layout_and_shade(void)
+{
+    Garden g;
+    garden_init(&g);
+    Rng r;
+    rng_seed(&r, 21);
+    for (int i = 0; i < 10; i++)
+        garden_plant(&g, &r, "08:00");
+    GardenBox *boxes = NULL;
+    size_t n = garden_layout(&g, GARDEN_W, GARDEN_H, &boxes);
+    CHECK(n > 0 && n <= g.n);
+    Life l;
+    life_init(&l, GARDEN_W, GARDEN_H);
+    garden_stamp(&g, &l);
+    int cells = 0;
+    for (size_t i = 0; i < n; i++) {
+        CHECK(boxes[i].x >= 1 && boxes[i].y >= 1);
+        CHECK(boxes[i].x + boxes[i].w <= GARDEN_W - 1 && boxes[i].y + boxes[i].h <= GARDEN_H - 1);
+        CHECK(boxes[i].pair < GARDEN_PAIRS);
+        CHECK(boxes[i].period >= 1);
+    }
+    for (size_t i = 0; i < n; i++)
+        for (int y = boxes[i].y; y < boxes[i].y + boxes[i].h; y++)
+            for (int x = boxes[i].x; x < boxes[i].x + boxes[i].w; x++)
+                cells += life_get(&l, x, y) == CELL_ON;
+    CHECK_INT(cells, life_population(&l)); /* every stamped cell lies in a box */
+
+    /* shade: a gradient across the box, always 0..7, moving with time */
+    GardenBox still = {10, 10, 4, 3, 2, 1}, osc = {10, 10, 3, 1, 2, 2};
+    CHECK(garden_shade(&still, 10, 10, 0) < garden_shade(&still, 13, 12, 0));
+    int lo = 7, hi = 0;
+    for (long f = 0; f < 400; f += 7)
+        for (int y = 5; y < 20; y++)
+            for (int x = 5; x < 20; x++) {
+                int s = garden_shade(&still, x, y, f);
+                CHECK(s >= 0 && s <= 7);
+                lo = s < lo ? s : lo;
+                hi = s > hi ? s : hi;
+            }
+    CHECK(lo == 0 && hi == 7);
+    CHECK(garden_shade(&osc, 11, 10, 0) != garden_shade(&osc, 11, 10, 8)); /* next generation */
+    CHECK(garden_shade(&still, 11, 11, 0) != garden_shade(&still, 11, 11, 40)); /* slow breathing */
+    free(boxes);
+    life_free(&l);
+    garden_free(&g);
+}
+
 void suite_garden(void)
 {
     test_pattern_order();
@@ -135,4 +184,5 @@ void suite_garden(void)
     test_full_garden_still_records();
     test_round_trip();
     test_stamp_is_stable();
+    test_layout_and_shade();
 }

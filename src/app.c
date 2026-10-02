@@ -555,6 +555,8 @@ static void open_garden_view(App *a)
         life_free(&a->gview);
     life_init(&a->gview, (a->cols - 2) * 2, (a->rows - 3) * 4);
     garden_stamp(&a->garden, &a->gview);
+    free(a->gboxes);
+    a->ngboxes = garden_layout(&a->garden, a->gview.w, a->gview.h, &a->gboxes);
     a->garden_view = true;
 }
 
@@ -563,6 +565,9 @@ static void close_garden_view(App *a)
     if (!a->garden_view)
         return;
     life_free(&a->gview);
+    free(a->gboxes);
+    a->gboxes = NULL;
+    a->ngboxes = 0;
     a->garden_view = false;
 }
 

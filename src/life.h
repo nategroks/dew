@@ -13,7 +13,7 @@
  */
 
 #define LIFE_MARGIN 8
-#define LIFE_TINTS 6 /* tint 0 = age ramp, 1..5 = fleet / garden colors */
+#define LIFE_TINTS 10 /* tint 0 = age ramp, 1..9 = fleet colors (aurora, then frost) */
 
 /* States 2 and up are "dying" (fading) cells of a Generations rule. */
 enum { CELL_OFF = 0, CELL_ON = 1, CELL_DYING = 2 };

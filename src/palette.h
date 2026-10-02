@@ -1,6 +1,7 @@
 #ifndef DEW_PALETTE_H
 #define DEW_PALETTE_H
 
+#include "garden.h"
 #include "life.h"
 
 #include <stdint.h>
@@ -25,6 +26,7 @@ typedef enum {
 typedef struct {
     uint32_t life[LIFE_TINTS][PAL_AGES];
     uint32_t gray[LIFE_TINTS][PAL_AGES]; /* paused */
+    uint32_t garden[GARDEN_PAIRS][PAL_AGES]; /* plant gradients, 8 steps each */
     uint32_t dying;
     uint32_t bg, band, sel_bg;
     uint32_t foam[4];
