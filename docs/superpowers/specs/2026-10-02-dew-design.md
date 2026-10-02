@@ -309,6 +309,6 @@ state and restore the terminal.
 
 ## 6. Open items
 
-- License: not chosen yet (polymon uses Apache-2.0).
-- GitHub remote: the user will create the repo. Until then work stays in local `~/dew`.
+- License: GPL-2.0 (the `LICENSE` in the GitHub repo).
+- Repo: https://github.com/nategroks/dew
 - Ghostty: verify when installed.
