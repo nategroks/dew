@@ -7,6 +7,7 @@ void suite_tasks(void);
 void suite_taskfile(void);
 void suite_config(void);
 void suite_wave(void);
+void suite_store(void);
 
 static const struct {
     const char *name;
@@ -17,6 +18,7 @@ static const struct {
     {"taskfile", suite_taskfile},
     {"config", suite_config},
     {"wave", suite_wave},
+    {"store", suite_store},
 };
 
 int main(int argc, char **argv)
