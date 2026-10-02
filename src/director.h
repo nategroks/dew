@@ -28,7 +28,9 @@ typedef struct {
     int highlife_left; /* focus: frames of HighLife left */
     int pending_sweep; /* frames until a break sweep starts, 0 = none */
     bool sweeping;
-    double sweep_x;
+    double sweep_x;    /* the river's leading edge */
+    double river_seed; /* shapes this river's meanders */
+    int river_fade;    /* frames left of the river fading out, after it has crossed */
     SweepThen then;
     uint8_t tint_cursor;
     Rule focus_rule; /* what focus waves run; Conway unless the user picks another */
@@ -53,6 +55,11 @@ void director_set_focus_rule(Director *d, Rule r);
 
 void director_frame(Director *d);
 bool director_animating(const Director *d); /* false when only the slow idle step runs */
-double director_front(const Director *d, int y); /* sweep front x at row y, while sweeping */
+/* While sweeping: the river's centerline at column x and its half width, in board cells. */
+double director_river_y(const Director *d, int x);
+int director_river_half(const Director *d);
+/* While the river crosses: where the wolf is (top-left, board cells) and its run-cycle frame.
+   False when it isn't on screen or the board is too small for it. */
+bool director_wolf(const Director *d, int *x, int *y, int *frame);
 
 #endif

@@ -31,3 +31,7 @@
 - Inside dew, see today's garden:
 
 `w`
+
+- Inside dew, switch the Game of Life rule that waves run (conway, highlife, day & night, ...):
+
+`r`

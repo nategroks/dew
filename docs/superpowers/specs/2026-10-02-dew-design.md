@@ -315,3 +315,22 @@ state and restore the terminal.
 - License: GPL-2.0 (the `LICENSE` in the GitHub repo).
 - Repo: https://github.com/nategroks/dew
 - Ghostty: verify when installed.
+
+## 7. Additions after v1 (approved 2026-10-02)
+
+- **Simulations.** A rules module parses any Life-like (`B…/S…`) or Generations
+  (`B…/S…/C…`) rule. Presets: conway, highlife, day & night, seeds, life without death,
+  maze, 2x2, morley, brian's brain, star wars. `focus_rule` in the config sets what
+  focus waves run; `r` cycles while dew runs. The pick is saved in the state file with
+  the config value it was chosen against, so editing `focus_rule` later wins. Breaks
+  stay Brian's Brain and the garden stays Conway. HighLife stretches only happen when
+  the focus rule is Conway.
+- **Garden color.** Each plant wears one of 9 curated Nord aurora/frost gradients (never
+  the previous plant's), shaded diagonally in 8 steps from its position. Oscillators
+  cycle through the gradient once per period; still lifes breathe on an 8 s cycle.
+  Fleets use all 9 colors. Total palette stays under 220 colors.
+- **River, wolf, runes.** The counter icon defaults to ᛚ (laguz; `sprite = rune`).
+  Glitch tears and jitter draw Elder Futhark runes. The break sweep is a river that
+  floods in from the left with a white pixel wolf (32×14 dots, 4-frame run cycle,
+  red eye) galloping along its bank, then fades into Brian's Brain; breaks end the
+  same way back to the garden. The wolf skips its run on panes too small for it.

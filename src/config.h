@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef enum { SPRITE_WAVE, SPRITE_ASCII, SPRITE_BOLT } Sprite;
+typedef enum { SPRITE_RUNE, SPRITE_WAVE, SPRITE_ASCII, SPRITE_BOLT } Sprite;
 
 typedef struct {
     int focus_min, short_min, long_min, long_every;
@@ -30,6 +30,6 @@ int config_parse(Config *c, const char *text, Sbuf *warn);
 /* Same, for the colors file: "nord0 = #2e3440" ... "nord15 = #b48ead". */
 int config_parse_colors(Config *c, const char *text, Sbuf *warn);
 
-const char *sprite_text(Sprite s); /* "🌊", "≈", "⚡" */
+const char *sprite_text(Sprite s); /* "ᛚ", "🌊", "≈", "⚡" */
 
 #endif

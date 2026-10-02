@@ -3,16 +3,19 @@
 dew is to-do app like no other.
 
 A terminal to-do list you knock out with a pomodoro timer. A pomodoro is a
-**wave** 🌊. Next to your list runs a Game of Life board in Nord colors that
-reacts to your work: starting a wave seeds it, checking off a task launches a
-fleet of gliders, finishing a wave sets off a burst and plants a pattern in
-today's garden, and breaks wash the board into Brian's Brain fireworks.
+**wave**, counted with the water rune ᛚ. Next to your list runs a Game of Life
+board in Nord colors that reacts to your work: starting a wave seeds it,
+checking off a task launches a fleet of gliders, finishing a wave sets off a
+burst and plants a pattern in today's garden, and breaks flood the board with
+a river (a white wolf runs along its bank) into Brian's Brain fireworks.
+Press `r` to give your waves a different automaton: HighLife, Day & Night,
+Seeds, Maze, Star Wars, or any `B…/S…` rule.
 
 ```
-┌ dew ── Today ───────────────────┐┌──────────── 🌊 18:42 focus · wave 4 ─┐
-│▶ [ ] fix grub theme         🌊2 ││  ⠀⣠⣄⠀⠀⠀⠀⢀⡀⠀⠀⠀⣀⠀⠀⠀⠀⠀⣠⣄⠀⠀⠀⢀⡀⠀⠀ │
+┌ dew ── Today ───────────────────┐┌──────────── ᛚ 18:42 focus · wave 4 ─┐
+│▶ [ ] fix grub theme          ᛚ2 ││  ⠀⣠⣄⠀⠀⠀⠀⢀⡀⠀⠀⠀⣀⠀⠀⠀⠀⠀⣠⣄⠀⠀⠀⢀⡀⠀⠀ │
 │  [ ] email site about HM        ││  ⠀⠙⠋⠀⢀⣴⡄⠈⠁⠀⣰⡆⠛⠀⠀⣤⠀⠀⠙⠋⢀⣴⡄⠈⠁⠀⣰ │
-│  [x] polymon P0 scaffold    🌊3 ││  ⠀⠀⠀⠀⠈⠛⠁⠀⠀⠀⠙⠃⠀⠀⠀⠛⠀⠀⠀⠀⠈⠛⠁⠀⠀⠀⠙ │
+│  [x] polymon P0 scaffold     ᛚ3 ││  ⠀⠀⠀⠀⠈⠛⠁⠀⠀⠀⠙⠃⠀⠀⠀⠛⠀⠀⠀⠀⠈⠛⠁⠀⠀⠀⠙ │
 │── Backlog (4) ──────────────────││                                      │
 └─────────────────────────────────┘└─────────────────────── B3/S23 conway ─┘
 ```

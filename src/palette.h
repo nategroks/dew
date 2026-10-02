@@ -30,6 +30,8 @@ typedef struct {
     uint32_t dying;
     uint32_t bg, band, sel_bg;
     uint32_t foam[4];
+    uint32_t river[4]; /* deep, mid, light water, bank */
+    uint32_t wolf[4];  /* indexed by PX_SNOW-1 .. PX_DARK-1: snow, shade, eye, dark */
     uint32_t glyph[5];
     uint32_t ui[UI_N];
 } PaletteRGB;

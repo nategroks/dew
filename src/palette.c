@@ -78,6 +78,14 @@ void palette_compute(PaletteRGB *p, const uint32_t n[16])
     p->foam[1] = n[4];
     p->foam[2] = n[8];
     p->foam[3] = n[7];
+    p->river[0] = n[10];
+    p->river[1] = n[9];
+    p->river[2] = n[8];
+    p->river[3] = n[7];
+    p->wolf[0] = n[6];
+    p->wolf[1] = n[4];
+    p->wolf[2] = n[11];
+    p->wolf[3] = n[3];
     p->glyph[0] = n[6];
     p->glyph[1] = n[8];
     p->glyph[2] = n[7];

@@ -1,5 +1,6 @@
 #include "app.h"
 #include "braille.h"
+#include "sprite.h"
 #include "util.h"
 
 #include <curses.h>
@@ -263,8 +264,6 @@ static void draw_list(App *a)
 
 /* ---- the Life board ---- */
 
-static const char GLYPHS[] = "@#%*&10SE";
-
 /* The plant (if any) whose box, widened for oscillators, holds board cell (x, y). */
 static const GardenBox *box_at(const GardenBox *boxes, size_t n, int x, int y)
 {
@@ -283,23 +282,58 @@ static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director
         return;
     bool glitch = a->cfg.glitch && d;
     int cols = in.w, rows = in.h;
-    uint8_t *obits = xcalloc((size_t)(cols * rows), 1);
-    uint32_t *ocolor = xcalloc((size_t)(cols * rows), sizeof *ocolor);
+    size_t ncells = (size_t)(cols * rows);
+    uint8_t *obits = xcalloc(ncells, 1), *wbits = xcalloc(ncells, 1), *webits = xcalloc(ncells, 1);
+    uint8_t *wrank = xcalloc(ncells, 1);
+    uint32_t *ocolor = xcalloc(ncells, sizeof *ocolor);
 
     if (d && d->sweeping) {
-        for (int by = 0; by < l->h && by / 4 < rows; by++) {
-            double fx = director_front(d, by);
-            for (int bx = (int)floor(fx - 10); bx <= (int)floor(fx + 1); bx++) {
-                if (bx < 0 || bx >= l->w || bx / 2 >= cols)
+        /* the river: deep water mid-stream, lighter toward the banks, foam at its edge */
+        int half = director_river_half(d), edge = (int)d->sweep_x;
+        double fade = d->river_fade > 0 ? d->river_fade / 24.0 : 1.0;
+        for (int bx = 0; bx < l->w && bx < edge && bx / 2 < cols; bx++) {
+            double ry = director_river_y(d, bx);
+            for (int by = (int)floor(ry - half - 1); by <= (int)ceil(ry + half + 1); by++) {
+                if (by < 0 || by >= l->h || by / 4 >= rows)
                     continue;
-                bool crest = bx >= fx - 3;
-                if (rng_unit(&a->fx) > (crest ? 0.75 : 0.12))
+                double dist = fabs(by - ry);
+                if (dist > half + 1)
                     continue;
+                bool bank = dist > half - 0.5, front = bx >= edge - 2;
+                long flow = ((bx - d->frame * 2 + by * 3) % 4 + 4) % 4; /* drifts downstream */
+                bool dot = front || bank ? rng_unit(&a->fx) < 0.7 : flow != 0;
+                if (!dot || rng_unit(&a->fx) > fade)
+                    continue;
+                uint32_t c = front                ? p->foam[rng_range(&a->fx, 2)]
+                           : bank                 ? p->river[3]
+                           : dist < half * 0.4    ? p->river[0]
+                           : dist < half * 0.8    ? p->river[1]
+                                                  : p->river[2];
+                if (!front && !bank && rng_unit(&a->fx) < 0.03)
+                    c = p->foam[0]; /* sparkle */
                 int ci = (by / 4) * cols + bx / 2;
                 obits[ci] |= braille_bit(bx & 1, by & 3);
-                ocolor[ci] = crest ? p->foam[rng_range(&a->fx, 4)] : p->foam[2];
+                ocolor[ci] = c;
             }
         }
+        /* the wolf runs along the bank, drawn over everything */
+        int wx, wy, wf;
+        if (director_wolf(d, &wx, &wy, &wf))
+            for (int y = 0; y < WOLF_H; y++)
+                for (int x = 0; x < WOLF_W; x++) {
+                    int px = wolf_pixel(wf, x, y), bx = wx + x, by = wy + y;
+                    if (px == PX_NONE || bx < 0 || by < 0 || bx >= l->w || by >= l->h ||
+                        bx / 2 >= cols || by / 4 >= rows)
+                        continue;
+                    int ci = (by / 4) * cols + bx / 2;
+                    uint8_t bit = braille_bit(bx & 1, by & 3);
+                    if (px == PX_EYE)
+                        webits[ci] |= bit;
+                    wbits[ci] |= bit;
+                    int rank = px == PX_SNOW ? 3 : px == PX_SHADE ? 2 : 1;
+                    if (rank > wrank[ci])
+                        wrank[ci] = (uint8_t)rank;
+                }
     }
 
     for (int cy = 0; cy < rows; cy++) {
@@ -321,14 +355,21 @@ static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director
                        : d && d->mood == MOOD_PAUSED      ? p->gray[bc.tint][b]
                                                           : p->life[bc.tint][b];
                 }
-                if (obits[cy * cols + sx]) {
-                    bits |= obits[cy * cols + sx];
-                    fg = ocolor[cy * cols + sx];
+                int ci = cy * cols + sx;
+                if (webits[ci]) { /* the eye cell shows just the eye, in red */
+                    bits = webits[ci];
+                    fg = p->wolf[PX_EYE - 1];
+                } else if (wbits[ci]) {
+                    bits = wbits[ci];
+                    fg = p->wolf[wrank[ci] == 3 ? PX_SNOW - 1 : wrank[ci] == 2 ? PX_SHADE - 1 : PX_DARK - 1];
+                } else if (obits[ci]) {
+                    bits |= obits[ci];
+                    fg = ocolor[ci];
                 }
             }
             wchar_t wc[2] = {L' ', 0};
             if (bits && glitch && rng_unit(&a->fx) < 0.005)
-                wc[0] = (wchar_t)GLYPHS[rng_range(&a->fx, 9)];
+                wc[0] = (wchar_t)rune(rng_range(&a->fx, RUNE_COUNT));
             else if (bits)
                 wc[0] = (wchar_t)(0x2800 + bits);
             cchar_t cc;
@@ -340,22 +381,17 @@ static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director
     if (glitch && d->tear > 0) {
         for (int k = 0; k < 36; k++) {
             int cx = rng_range(&a->fx, cols), cy = rng_range(&a->fx, rows);
-            wchar_t wc[2] = {(wchar_t)GLYPHS[rng_range(&a->fx, 9)], 0};
+            wchar_t wc[2] = {(wchar_t)rune(rng_range(&a->fx, RUNE_COUNT)), 0};
             cchar_t cc;
             setcchar(&cc, wc, A_NORMAL, pair_of(p->glyph[rng_range(&a->fx, 5)], p->bg), NULL);
             mvadd_wch(in.y + cy, in.x + cx, &cc);
         }
     }
 
-    if (d && d->sweeping) {
-        const char *s = sprite_text(a->cfg.sprite);
-        int x = (int)(director_front(d, 8) / 2) - 1;
-        if (x >= 0 && x + text_width(s) <= cols) {
-            pen(p->foam[0], p->bg, A_NORMAL);
-            put_text(in.y + (d->frame % 8 < 4 ? 0 : 1), in.x + x, text_width(s), s, 0);
-        }
-    }
     free(obits);
+    free(wbits);
+    free(webits);
+    free(wrank);
     free(ocolor);
 }
 

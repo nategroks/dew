@@ -16,7 +16,7 @@ void config_defaults(Config *c)
     c->short_min = 5;
     c->long_min = 15;
     c->long_every = 4;
-    c->sprite = SPRITE_WAVE;
+    c->sprite = SPRITE_RUNE;
     c->bell = true;
     c->notify = true;
     c->glitch = true;
@@ -32,8 +32,10 @@ const char *sprite_text(Sprite s)
         return "≈";
     case SPRITE_BOLT:
         return "⚡";
-    default:
+    case SPRITE_WAVE:
         return "🌊";
+    default:
+        return "ᛚ"; /* laguz: water */
     }
 }
 
@@ -150,14 +152,16 @@ static int config_line(Config *c, const char *key, const char *val, size_t linen
         return 0;
     }
     if (strcmp(key, "sprite") == 0) {
-        if (strcmp(val, "wave") == 0)
+        if (strcmp(val, "rune") == 0)
+            c->sprite = SPRITE_RUNE;
+        else if (strcmp(val, "wave") == 0)
             c->sprite = SPRITE_WAVE;
         else if (strcmp(val, "ascii") == 0)
             c->sprite = SPRITE_ASCII;
         else if (strcmp(val, "bolt") == 0)
             c->sprite = SPRITE_BOLT;
         else {
-            sb_printf(warn, "config: line %zu: sprite must be wave, ascii or bolt\n", lineno);
+            sb_printf(warn, "config: line %zu: sprite must be rune, wave, ascii or bolt\n", lineno);
             return 1;
         }
         return 0;

@@ -1,4 +1,5 @@
 #include "director.h"
+#include "sprite.h"
 #include "test.h"
 
 #include <stdlib.h>
@@ -125,6 +126,53 @@ static void test_finish_break_cycle(void)
     garden_free(&g);
 }
 
+static void test_river_and_wolf(void)
+{
+    Director d;
+    director_init(&d, 120, 64, 9, NULL);
+    director_on_wave_start(&d);
+    director_on_wave_finish(&d);
+    int guard = 0;
+    while (!d.sweeping && guard++ < 100)
+        director_frame(&d);
+    CHECK(d.sweeping);
+    int half = director_river_half(&d);
+    CHECK(half >= 1);
+    int last_x = -1000, seen = 0;
+    guard = 0;
+    while (d.sweeping && guard++ < 500) {
+        for (int x = 0; x < d.life.w; x++) {
+            double y = director_river_y(&d, x);
+            CHECK(y >= half && y <= d.life.h - 1 - half);
+        }
+        int wx, wy, wf;
+        if (director_wolf(&d, &wx, &wy, &wf)) {
+            CHECK(wx > last_x); /* always running forward */
+            CHECK(wy >= 0 && wy + WOLF_H <= d.life.h);
+            CHECK(wf >= 0 && wf < WOLF_FRAMES);
+            last_x = wx;
+            seen++;
+        }
+        director_frame(&d);
+    }
+    CHECK(seen > 10);
+    CHECK(!d.sweeping);
+    CHECK(rule_eq(d.life.rule, rule_brain()));
+    director_free(&d);
+
+    /* no room for the wolf: it skips its run */
+    director_init(&d, 30, 10, 9, NULL);
+    director_on_wave_start(&d);
+    director_on_wave_finish(&d);
+    guard = 0;
+    while (guard++ < 300) {
+        int wx, wy, wf;
+        CHECK(!director_wolf(&d, &wx, &wy, &wf));
+        director_frame(&d);
+    }
+    director_free(&d);
+}
+
 static void test_pause_decays(void)
 {
     Director d;
@@ -234,6 +282,7 @@ void suite_director(void)
     test_wave_start_seeds_a_band();
     test_fleet_color();
     test_finish_break_cycle();
+    test_river_and_wolf();
     test_pause_decays();
     test_abandon();
     test_tiny_and_resizing_boards();

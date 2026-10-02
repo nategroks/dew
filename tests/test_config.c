@@ -11,7 +11,8 @@ static void test_defaults(void)
     CHECK_INT(c.short_min, 5);
     CHECK_INT(c.long_min, 15);
     CHECK_INT(c.long_every, 4);
-    CHECK_INT(c.sprite, SPRITE_WAVE);
+    CHECK_INT(c.sprite, SPRITE_RUNE);
+    CHECK_STR(sprite_text(SPRITE_RUNE), "ᛚ");
     CHECK(c.bell && c.notify && c.glitch);
     CHECK_INT(c.fps, 20);
     CHECK_INT(c.nord[0], 0x2e3440);
@@ -49,6 +50,8 @@ static void test_parse(void)
                          "short_break=10\n"
                          "  long_break = 20\r\n"
                          "long_every = 3\n"
+                         "sprite = ascii\n"
+                         "sprite = rune\n"
                          "sprite = ascii\n"
                          "bell = 0\n"
                          "notify = no\n"

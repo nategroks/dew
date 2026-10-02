@@ -30,8 +30,17 @@ The right-hand pane runs a Game of Life board that reacts to what you do.
 Starting a wave seeds it, checking off a task launches a fleet of gliders,
 finishing a wave sets off a burst and plants a pattern in today's
 .IR garden ,
-and a break washes the board with a wave into Brian's Brain fireworks.
+and a break floods the board with a river (a white wolf runs along its bank)
+that gives way to Brian's Brain fireworks.
 Pausing turns the colony gray and lets it die off.
+Garden plants wear Nord gradients that shift as they blink and breathe.
+.PP
+Focus waves run Conway's Game of Life unless you pick another
+simulation: set
+.B focus_rule
+or press
+.BR r .
+Breaks always run Brian's Brain and the garden always runs Conway.
 .PP
 The pane is hidden when the terminal is smaller than 80\(mu24.
 .SH KEYS
@@ -80,6 +89,14 @@ Finish the wave now (it counts), or end the break.
 .B S
 Abandon the wave. It does not count and plants nothing.
 .TP
+.B r
+Switch the simulation that waves run to the next one: conway, highlife,
+day & night, seeds, life without death, maze, 2x2, morley, brian's brain,
+star wars, then your own rule if the config has one.
+The choice is remembered until the config's
+.B focus_rule
+changes.
+.TP
 .B w
 Show today's garden full screen. Any key returns.
 .TP
@@ -108,8 +125,8 @@ if
 is installed, shows a desktop notification.
 .PP
 A finished wave adds one to the task's wave count, shown as
-.B \[u1F30A]
-followed by the count.
+.B \[u16DA]
+(laguz, the water rune) followed by the count.
 .SH FILES
 .TP
 .I $XDG_DATA_HOME/dew/tasks.md
@@ -169,7 +186,9 @@ Long break minutes, 1\-120.
 .BR long_every " (4)"
 A long break after this many waves, 1\-12.
 .TP
-.BR sprite " (wave)"
+.BR sprite " (rune)"
+.B rune
+(\[u16DA]),
 .B wave
 (\[u1F30A]),
 .B ascii
@@ -187,7 +206,16 @@ Show desktop notifications.
 Animation frames per second, 5\-60.
 .TP
 .BR glitch " (1)"
-0 turns off the glitch tears and glyph jitter.
+0 turns off the glitch tears and rune jitter.
+.TP
+.BR focus_rule " (conway)"
+The simulation focus waves run: a preset
+.RB ( conway ", " highlife ", " daynight ", " seeds ", " lifewithoutdeath ,
+.BR maze ", " 2x2 ", " morley ", " brain ", " starwars )
+or a rule string such as
+.B B36/S23
+or, with dying states,
+.BR B2/S345/C4 .
 .PP
 The colors file takes
 .BR nord0 " to " nord15 ,

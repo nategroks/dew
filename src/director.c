@@ -1,6 +1,7 @@
 #include "director.h"
 
 #include "patterns.h"
+#include "sprite.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -181,10 +182,14 @@ void director_on_wave_finish(Director *d)
     d->pending_sweep = SWEEP_DELAY;
 }
 
+#define RIVER_FADE 24
+
 static void start_sweep(Director *d, SweepThen then)
 {
     d->sweeping = true;
-    d->sweep_x = -12;
+    d->sweep_x = 0;
+    d->river_fade = 0;
+    d->river_seed = rng_unit(&d->rng) * 6.28;
     d->then = then;
 }
 
@@ -203,9 +208,44 @@ void director_on_abandon(Director *d)
     director_show_garden(d);
 }
 
-double director_front(const Director *d, int y)
+int director_river_half(const Director *d)
 {
-    return d->sweep_x + 5 * sin(y * 0.2 + d->frame * 0.3) + 3 * sin(y * 0.07 - d->frame * 0.1);
+    return imax(1, d->life.h / 12);
+}
+
+double director_river_y(const Director *d, int x)
+{
+    int h = d->life.h, half = director_river_half(d);
+    double y = h / 2.0 + h * 0.15 * sin(x * 0.045 + d->river_seed) +
+               h * 0.05 * sin(x * 0.13 + 1.3 * d->river_seed);
+    if (y > h - 1 - half)
+        y = h - 1 - half;
+    if (y < half)
+        y = half;
+    return y;
+}
+
+bool director_wolf(const Director *d, int *x, int *y, int *frame)
+{
+    const Life *l = &d->life;
+    if (!d->sweeping || d->river_fade > 0 || l->w < WOLF_W + 8 || l->h < WOLF_H + 4)
+        return false;
+    int wx = (int)d->sweep_x - WOLF_W + 4; /* nose at the river's leading edge */
+    if (wx + WOLF_W <= 0 || wx >= l->w)
+        return false;
+    int mid = wx + WOLF_W / 2, half = director_river_half(d);
+    int ry = (int)lround(director_river_y(d, mid < 0 ? 0 : mid >= l->w ? l->w - 1 : mid));
+    int wy = ry - half - WOLF_H; /* on the bank above the river... */
+    if (wy < 0)
+        wy = ry + half + 1;      /* ...or below it when there's no room */
+    if (wy + WOLF_H > l->h)
+        wy = l->h - WOLF_H;
+    if (wy < 0)
+        wy = 0;
+    *x = wx;
+    *y = wy;
+    *frame = (int)((d->frame / 2) % WOLF_FRAMES);
+    return true;
 }
 
 static void brain_seed(Director *d)
@@ -214,7 +254,7 @@ static void brain_seed(Director *d)
     int blobs = imax(2, imin(7, l->w * l->h / 1100));
     for (int k = 0; k < blobs; k++) {
         int cx = rng_range(&d->rng, imax(1, l->w)), cy = rng_range(&d->rng, imax(1, l->h));
-        uint8_t t = (uint8_t)(1 + rng_range(&d->rng, 5));
+        uint8_t t = (uint8_t)(1 + rng_range(&d->rng, LIFE_TINTS - 1));
         for (int y = -4; y <= 4; y++)
             for (int x = -4; x <= 4; x++)
                 if (x * x + y * y <= 16 && rng_unit(&d->rng) < 0.45 && cx + x >= 0 &&
@@ -226,16 +266,20 @@ static void brain_seed(Director *d)
 static void advance_sweep(Director *d)
 {
     Life *l = &d->life;
-    d->sweep_x += SWEEP_SPEED;
-    for (int y = 0; y < l->h; y++) {
-        int lim = (int)floor(director_front(d, y) - 1);
-        if (lim > l->w)
-            lim = l->w;
-        for (int x = 0; x < lim; x++)
-            life_set(l, x, y, CELL_OFF, 0, 0);
-    }
-    if (d->sweep_x <= l->w + 14)
+    if (d->river_fade > 0) {
+        if (--d->river_fade > 0)
+            return;
+    } else {
+        d->sweep_x += SWEEP_SPEED;
+        int lim = imin(l->w, (int)d->sweep_x);
+        for (int y = 0; y < l->h; y++) /* the flood clears the board behind its edge */
+            for (int x = 0; x < lim; x++)
+                life_set(l, x, y, CELL_OFF, 0, 0);
+        if (d->sweep_x <= l->w + WOLF_W) /* until the wolf has run off the right */
+            return;
+        d->river_fade = RIVER_FADE;
         return;
+    }
     d->sweeping = false;
     if (d->then == THEN_BRAIN) {
         life_clear(l);
