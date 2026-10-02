@@ -13,7 +13,7 @@ NCURSES_LIBS   := $(shell $(PKG) --libs ncursesw)
 DEW_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc \
               -DDEW_VERSION='"$(VERSION)"' $(NCURSES_CFLAGS)
 
-CORE := util tasks taskfile config
+CORE := util tasks taskfile config wave
 UI   :=
 
 CORE_OBJ := $(CORE:%=build/%.o)
