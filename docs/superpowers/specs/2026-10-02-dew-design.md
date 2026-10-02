@@ -1,7 +1,7 @@
 # dew — design spec
 
 Date: 2026-10-02
-Status: draft, awaiting review
+Status: approved 2026-10-02; implementation plan in `docs/superpowers/plans/2026-10-02-dew-v1.md`
 
 ## 1. What dew is
 
@@ -49,7 +49,7 @@ export, stats, sync, mouse support, sound files, browsing past gardens.
   attached to. The wave count shows as `🌊N` (hidden when 0).
 - **Right pane:** the Life board. The header shows timer and mode. The footer shows the
   current rule.
-- **Note line:** the selected task's note (first lines that fit).
+- **Note line:** the first line of the selected task's note, plus "(+N more lines)" when there are more.
 - **Key line:** the keys below.
 
 Below 80×24 the Life pane is hidden and the list uses the whole width. Resizing is
@@ -80,7 +80,7 @@ can follow vi top/bottom.
 The inline prompt supports printable text, `Backspace`, `←` `→`, `Home` `End`,
 `Ctrl-U`, `Enter` to commit and `Esc` to cancel.
 
-Done tasks stay in Today, struck through, for the rest of the day. On the first launch
+Done tasks stay in Today, drawn dim with `[x]` (curses has no strikethrough), for the rest of the day. On the first launch
 (or tick) after midnight they move to a `# Done YYYY-MM-DD` section at the bottom of
 the file.
 
@@ -142,9 +142,10 @@ static. *Jitter* is a 0.12% per-dot chance per frame of drawing a glyph instead 
 
 ### Garden
 
-Every finished wave plants one pattern at a free spot (no overlap, 4-cell padding):
+Every finished wave plants one pattern at a free spot (no overlap, 8-cell padding so oscillators never touch):
 still lifes and small oscillators, with a pentadecathlon on every 4th wave and a
-pulsar on every 8th. The tint cycles per wave. The garden is per day and saved to disk.
+pulsar on every 8th. The tint cycles per wave. Positions live in a fixed 120×64 space and are scaled
+onto whatever board is showing. The garden is per day and saved to disk.
 Past days are kept but not browsable in v1.
 
 ### Palette (Nord)
@@ -208,6 +209,7 @@ Rules:
 - dew saves after every change, so it never holds unsaved edits. Once a second it checks
   the file's mtime and size. If someone else changed the file (for example in
   Spacemacs), it reloads and keeps the selection on the same title if it still exists.
+- Files with Windows line endings load fine and are saved back with LF.
 - A missing file is created with empty `# Today` and `# Backlog` sections. A file that
   fails to parse is never overwritten: dew exits with the line number.
 
@@ -238,7 +240,7 @@ dew --help | --version
 
 There are two locks. The TUI holds `lock` for its whole run, so only one TUI runs at a
 time. Every write to `tasks.md` (from the TUI or from `dew add`) holds a short `flock`
-on `tasks.md` itself. `dew add` doesn't take the instance lock, so it works while the
+on `tasks.md.lock` (not on `tasks.md` itself, which `rename` replaces). `dew add` doesn't take the instance lock, so it works while the
 TUI is open, and the TUI picks the change up through its mtime check.
 
 ### Modules (C11, one header per module)
@@ -282,7 +284,8 @@ state and restore the terminal.
 - **Build:** a plain `Makefile`, like glitch. `make`, `make test`,
   `make debug` (ASan + UBSan), `make install PREFIX=~/.local`.
   Requires ncursesw (`pkg-config ncursesw`). No other dependencies.
-- **Flags:** `-std=c11 -Wall -Wextra -Wpedantic -Werror -O2`, `_POSIX_C_SOURCE=200809L`.
+- **Flags:** `-std=c11 -Wall -Wextra -Wpedantic -Werror -O2`. Feature-test macros come only from
+  `pkg-config --cflags ncursesw` (`-D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600`); defining our own clashes.
 - **Unit tests:** a single test binary built from `tests/*.c` with a small assert macro,
   no framework. Covers:
   - `taskfile`: round-trip (parse → serialize gives identical bytes), notes, meta
