@@ -3,12 +3,14 @@
 int t_run, t_fail;
 
 void suite_util(void);
+void suite_tasks(void);
 
 static const struct {
     const char *name;
     void (*run)(void);
 } SUITES[] = {
     {"util", suite_util},
+    {"tasks", suite_tasks},
 };
 
 int main(int argc, char **argv)
