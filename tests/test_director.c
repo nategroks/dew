@@ -100,7 +100,7 @@ static void test_finish_break_cycle(void)
     while (d.sweeping && guard++ < 500)
         director_frame(&d);
     CHECK(!d.sweeping);
-    CHECK_INT(d.life.rule, RULE_BRAIN);
+    CHECK(rule_eq(d.life.rule, rule_brain()));
     CHECK(life_population(&d.life) > 0);
     run(&d, 50);
 
@@ -114,7 +114,7 @@ static void test_finish_break_cycle(void)
     life_init(&ref, 96, 48);
     garden_stamp(&g, &ref);
     CHECK(same_board(&d.life, &ref));
-    CHECK_INT(d.life.rule, RULE_CONWAY);
+    CHECK(rule_eq(d.life.rule, rule_conway()));
     life_free(&ref);
     director_free(&d);
     garden_free(&g);
@@ -178,6 +178,35 @@ static void test_tiny_and_resizing_boards(void)
     garden_free(&g);
 }
 
+static void test_focus_rule(void)
+{
+    Director d;
+    Rule dn;
+    rule_parse("daynight", &dn);
+    director_init(&d, 96, 48, 8, NULL);
+    CHECK(rule_eq(d.focus_rule, rule_conway()));
+    director_set_focus_rule(&d, dn); /* idle: applies to the next wave */
+    CHECK(rule_eq(d.life.rule, rule_conway()));
+    director_on_wave_start(&d);
+    CHECK(rule_eq(d.life.rule, dn));
+    run(&d, 900); /* no random HighLife stretches unless the focus rule is Conway */
+    CHECK(rule_eq(d.life.rule, dn));
+
+    director_set_focus_rule(&d, rule_conway()); /* during focus: switches live, with a tear */
+    CHECK(rule_eq(d.life.rule, rule_conway()));
+    CHECK(d.tear > 0);
+
+    director_on_pause(&d);
+    director_on_resume(&d);
+    CHECK(rule_eq(d.life.rule, rule_conway()));
+    director_on_wave_finish(&d);
+    int guard = 0;
+    while ((d.pending_sweep || d.sweeping) && guard++ < 500)
+        director_frame(&d);
+    CHECK(rule_eq(d.life.rule, rule_brain())); /* breaks stay Brian's Brain */
+    director_free(&d);
+}
+
 static void test_deterministic(void)
 {
     Director a, b;
@@ -203,5 +232,6 @@ void suite_director(void)
     test_pause_decays();
     test_abandon();
     test_tiny_and_resizing_boards();
+    test_focus_rule();
     test_deterministic();
 }

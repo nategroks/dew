@@ -17,6 +17,23 @@ static void test_defaults(void)
     CHECK_INT(c.nord[0], 0x2e3440);
     CHECK_INT(c.nord[15], 0xb48ead);
     CHECK_STR(sprite_text(SPRITE_ASCII), "≈");
+    CHECK(rule_eq(c.focus_rule, rule_conway()));
+}
+
+static void test_focus_rule(void)
+{
+    Config c;
+    config_defaults(&c);
+    Sbuf w;
+    sb_init(&w);
+    CHECK_INT(config_parse(&c, "focus_rule = daynight\n", &w), 0);
+    CHECK_STR(rule_name(c.focus_rule), "day & night");
+    CHECK_INT(config_parse(&c, "focus_rule = B35/S236\n", &w), 0);
+    CHECK_STR(rule_name(c.focus_rule), "custom");
+    CHECK_INT(config_parse(&c, "focus_rule = B9/S1\n", &w), 1);
+    CHECK_STR(rule_name(c.focus_rule), "custom"); /* unchanged */
+    CHECK(strstr(w.buf, "line 1: focus_rule") != NULL);
+    sb_free(&w);
 }
 
 static void test_parse(void)
@@ -97,6 +114,7 @@ void suite_config(void)
 {
     test_defaults();
     test_parse();
+    test_focus_rule();
     test_bad_values();
     test_colors();
 }

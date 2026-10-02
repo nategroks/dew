@@ -31,6 +31,7 @@ typedef struct {
     double sweep_x;
     SweepThen then;
     uint8_t tint_cursor;
+    Rule focus_rule; /* what focus waves run; Conway unless the user picks another */
 } Director;
 
 void director_init(Director *d, int w, int h, uint64_t seed, const Garden *g);
@@ -45,6 +46,8 @@ void director_on_wave_finish(Director *d);
 void director_on_break_end(Director *d);
 void director_on_abandon(Director *d);
 void director_show_garden(Director *d); /* clear and stamp the garden */
+/* Idle: applies to the next wave. Focus/paused: switches the running board, with a tear. */
+void director_set_focus_rule(Director *d, Rule r);
 
 void director_frame(Director *d);
 bool director_animating(const Director *d); /* false when only the slow idle step runs */

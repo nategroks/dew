@@ -365,17 +365,20 @@ static void status_text(App *a, char *out, size_t n)
     }
 }
 
-static const char *rule_name(Rule r)
+static void rule_label(Rule r, char *out, size_t n)
 {
-    return r == RULE_HIGHLIFE ? "B36/S23 highlife" : r == RULE_BRAIN ? "brian's brain" : "B3/S23 conway";
+    char text[32];
+    rule_format(r, text, sizeof text);
+    snprintf(out, n, "%s %s", text, rule_name(r));
 }
 
 static void draw_life(App *a)
 {
     Rect r = a->lay.life;
-    char status[96];
+    char status[96], label[64];
     status_text(a, status, sizeof status);
-    draw_box(a, r, NULL, status, rule_name(a->dir.life.rule));
+    rule_label(a->dir.life.rule, label, sizeof label);
+    draw_box(a, r, NULL, status, label);
     draw_board(a, &a->dir.life, (Rect){r.x + 1, r.y + 1, r.w - 2, r.h - 2},
                a->dir.mood == MOOD_IDLE, &a->dir);
 }
@@ -450,7 +453,7 @@ static void draw_keys(App *a)
     }
     static const char *HINTS[][2] = {
         {"a", "add"},  {"e", "edit"},   {"n", "note"}, {"x", "done"},   {"t", "today↔backlog"},
-        {"J/K", "move"}, {"␣", "wave"}, {"s", "stop"}, {"w", "garden"}, {"?", "help"}, {"q", "quit"},
+        {"J/K", "move"}, {"␣", "wave"}, {"s", "stop"}, {"r", "rule"}, {"w", "garden"}, {"?", "help"}, {"q", "quit"},
     };
     int x = 0;
     for (size_t i = 0; i < sizeof HINTS / sizeof *HINTS; i++) {
@@ -480,6 +483,7 @@ static void draw_help(App *a)
         {"Space", "start, pause or resume a wave"},
         {"s", "finish the wave now, or end the break"},
         {"S", "abandon the wave (not counted)"},
+        {"r", "next simulation for waves"},
         {"w", "today's garden"},
         {"q", "quit (a running wave resumes next time)"},
     };

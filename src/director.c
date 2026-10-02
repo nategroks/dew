@@ -20,6 +20,7 @@ void director_init(Director *d, int w, int h, uint64_t seed, const Garden *g)
     rng_seed(&d->rng, seed);
     d->garden = g;
     d->mood = MOOD_IDLE;
+    d->focus_rule = rule_conway();
     director_show_garden(d);
 }
 
@@ -31,7 +32,7 @@ void director_free(Director *d)
 void director_show_garden(Director *d)
 {
     life_clear(&d->life);
-    life_set_rule(&d->life, RULE_CONWAY);
+    life_set_rule(&d->life, rule_conway());
     if (d->garden)
         garden_stamp(d->garden, &d->life);
 }
@@ -77,10 +78,20 @@ void director_on_wave_start(Director *d)
     d->mood = MOOD_FOCUS;
     d->tear = 4;
     life_clear(l);
-    life_set_rule(l, RULE_CONWAY);
+    life_set_rule(l, d->focus_rule);
     int band = imin(20, imax(4, l->h / 2));
     int margin = l->w / 16;
     soup(d, margin, rng_range(&d->rng, imax(1, l->h - band)), l->w - 2 * margin, band, 0.34, 0);
+}
+
+void director_set_focus_rule(Director *d, Rule r)
+{
+    d->focus_rule = r;
+    if ((d->mood == MOOD_FOCUS || d->mood == MOOD_PAUSED) && !d->sweeping) {
+        d->highlife_left = 0;
+        life_set_rule(&d->life, r);
+        d->tear = 3;
+    }
 }
 
 void director_on_pause(Director *d)
@@ -155,7 +166,7 @@ void director_on_wave_finish(Director *d)
 {
     reset_effects(d);
     d->mood = MOOD_BREAK;
-    life_set_rule(&d->life, RULE_CONWAY);
+    life_set_rule(&d->life, rule_conway());
     burst(d);
     d->tear = 6;
     d->pending_sweep = SWEEP_DELAY;
@@ -219,7 +230,7 @@ static void advance_sweep(Director *d)
     d->sweeping = false;
     if (d->then == THEN_BRAIN) {
         life_clear(l);
-        life_set_rule(l, RULE_BRAIN);
+        life_set_rule(l, rule_brain());
         brain_seed(d);
     } else {
         director_show_garden(d);
@@ -255,9 +266,10 @@ void director_frame(Director *d)
             soup(d, rng_range(&d->rng, imax(1, l->w - 24)), rng_range(&d->rng, imax(1, l->h - 20)),
                  24, 20, 0.3, 0);
         if (d->highlife_left > 0 && --d->highlife_left == 0)
-            life_set_rule(l, RULE_CONWAY);
-        if (d->frame % 400 == 0 && l->rule == RULE_CONWAY && rng_unit(&d->rng) < 0.45) {
-            life_set_rule(l, RULE_HIGHLIFE);
+            life_set_rule(l, d->focus_rule);
+        if (d->frame % 400 == 0 && rule_eq(d->focus_rule, rule_conway()) &&
+            rule_eq(l->rule, rule_conway()) && rng_unit(&d->rng) < 0.45) {
+            life_set_rule(l, rule_highlife());
             d->highlife_left = HIGHLIFE_FRAMES;
         }
         break;

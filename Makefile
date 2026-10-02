@@ -13,7 +13,7 @@ NCURSES_LIBS   := $(shell $(PKG) --libs ncursesw)
 DEW_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc \
               -DDEW_VERSION='"$(VERSION)"' $(NCURSES_CFLAGS)
 
-CORE := util tasks taskfile config wave store life patterns garden director \
+CORE := util rules tasks taskfile config wave store life patterns garden director \
         palette braille layout lineedit
 UI   := render app nudge
 

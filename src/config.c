@@ -21,6 +21,7 @@ void config_defaults(Config *c)
     c->notify = true;
     c->glitch = true;
     c->fps = 20;
+    c->focus_rule = rule_conway();
     memcpy(c->nord, NORD, sizeof NORD);
 }
 
@@ -138,6 +139,16 @@ static int config_line(Config *c, const char *key, const char *val, size_t linen
         return set_bool(&c->notify, key, val, lineno, warn);
     if (strcmp(key, "glitch") == 0)
         return set_bool(&c->glitch, key, val, lineno, warn);
+    if (strcmp(key, "focus_rule") == 0) {
+        Rule r;
+        if (!rule_parse(val, &r)) {
+            sb_printf(warn, "config: line %zu: focus_rule must be a preset like daynight or a rule like B36/S23\n",
+                      lineno);
+            return 1;
+        }
+        c->focus_rule = r;
+        return 0;
+    }
     if (strcmp(key, "sprite") == 0) {
         if (strcmp(val, "wave") == 0)
             c->sprite = SPRITE_WAVE;

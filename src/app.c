@@ -185,6 +185,8 @@ static void save_state(App *a)
     s.long_break = w.long_break;
     s.remaining = w.remaining;
     s.wall_end = (long long)time(NULL) + (long long)(w.remaining + 0.5);
+    rule_format(a->dir.focus_rule, s.rule, sizeof s.rule);
+    rule_format(a->cfg.focus_rule, s.base, sizeof s.base);
     s.task = a->active_title; /* borrowed, not freed */
     if (!state_save(a->paths.state_path, &s))
         say(a, true, "Could not save the wave state: %s", strerror(errno));
@@ -463,6 +465,27 @@ static void act_stop(App *a, double now)
     }
 }
 
+/* r: the presets in order, plus the config's own rule if it is a custom one. */
+static void act_cycle_rule(App *a)
+{
+    Rule list[16];
+    int n = 0;
+    for (int i = 0; i < RULE_PRESET_COUNT && n < 15; i++)
+        list[n++] = RULE_PRESETS[i].rule;
+    if (strcmp(rule_name(a->cfg.focus_rule), "custom") == 0)
+        list[n++] = a->cfg.focus_rule;
+    int cur = -1;
+    for (int i = 0; i < n; i++)
+        if (rule_eq(list[i], a->dir.focus_rule))
+            cur = i;
+    Rule next = list[(cur + 1) % n];
+    director_set_focus_rule(&a->dir, next);
+    char text[32];
+    rule_format(next, text, sizeof text);
+    say(a, false, "Waves now run %s (%s).", rule_name(next), text);
+    save_state(a);
+}
+
 static void act_abandon(App *a)
 {
     if (!wave_abandon(&a->wave))
@@ -475,7 +498,16 @@ static void act_abandon(App *a)
 static void restore_wave(App *a)
 {
     SavedState s;
-    if (!state_load(a->paths.state_path, &s) || s.mode == WAVE_IDLE) {
+    if (!state_load(a->paths.state_path, &s)) {
+        state_clear(&s);
+        return;
+    }
+    /* The rule picked with r is remembered, unless the config's focus_rule changed since. */
+    Rule saved, base;
+    if (rule_parse(s.rule, &saved) &&
+        (!rule_parse(s.base, &base) || rule_eq(base, a->cfg.focus_rule)))
+        director_set_focus_rule(&a->dir, saved);
+    if (s.mode == WAVE_IDLE) {
         state_clear(&s);
         return;
     }
@@ -660,6 +692,7 @@ static void on_key(App *a, bool code, wint_t ch)
     case ' ': act_space(a, a->now); break;
     case 's': act_stop(a, a->now); break;
     case 'S': act_abandon(a); break;
+    case 'r': act_cycle_rule(a); break;
     case 'w': open_garden_view(a); break;
     case '?': a->help = true; break;
     case 'q': a->quit = true; break;
@@ -740,6 +773,7 @@ static int setup(App *a, const char *file)
     rng_seed(&a->fx, (uint64_t)time(NULL) ^ ((uint64_t)getpid() << 20));
     uint64_t seed = rng_next(&a->fx) | (uint64_t)rng_next(&a->fx) << 32;
     director_init(&a->dir, 0, 0, seed, &a->garden);
+    director_set_focus_rule(&a->dir, a->cfg.focus_rule);
     return 0;
 }
 

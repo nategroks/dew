@@ -1,6 +1,7 @@
 #ifndef DEW_CONFIG_H
 #define DEW_CONFIG_H
 
+#include "rules.h"
 #include "util.h"
 
 #include <stdbool.h>
@@ -13,6 +14,7 @@ typedef struct {
     Sprite sprite;
     bool bell, notify, glitch;
     int fps;
+    Rule focus_rule;   /* the automaton focus waves run */
     uint32_t nord[16]; /* 0xRRGGBB, nord0..nord15 */
 } Config;
 

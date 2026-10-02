@@ -61,7 +61,7 @@ static void test_highlife_b6(void)
     for (int r = 0; r < 2; r++) {
         Life l;
         life_init(&l, 12, 12);
-        life_set_rule(&l, r ? RULE_HIGHLIFE : RULE_CONWAY);
+        life_set_rule(&l, r ? rule_highlife() : rule_conway());
         for (int k = 0; k < 6; k++)
             life_set(&l, nb[k][0], nb[k][1], CELL_ON, 0, 0);
         life_step(&l);
@@ -74,7 +74,7 @@ static void test_brain(void)
 {
     Life l;
     life_init(&l, 12, 12);
-    life_set_rule(&l, RULE_BRAIN);
+    life_set_rule(&l, rule_brain());
     life_set(&l, 4, 5, CELL_ON, 3, 0);
     life_set(&l, 6, 5, CELL_ON, 3, 0);
     life_step(&l);
@@ -85,8 +85,61 @@ static void test_brain(void)
     CHECK_INT(life_get(&l, 4, 5), CELL_OFF); /* dying -> off */
 
     life_set(&l, 1, 1, CELL_DYING, 0, 0);
-    life_set_rule(&l, RULE_CONWAY);
+    life_set_rule(&l, rule_conway());
     CHECK_INT(life_get(&l, 1, 1), CELL_OFF);
+    life_free(&l);
+}
+
+static void test_generic_rules(void)
+{
+    Rule r;
+    Life l;
+
+    /* Seeds B2/S: live cells always die, a dead cell with two neighbours is born */
+    life_init(&l, 12, 12);
+    rule_parse("seeds", &r);
+    life_set_rule(&l, r);
+    life_set(&l, 4, 5, CELL_ON, 0, 0);
+    life_set(&l, 6, 5, CELL_ON, 0, 0);
+    life_step(&l);
+    CHECK_INT(life_get(&l, 4, 5), CELL_OFF);
+    CHECK_INT(life_get(&l, 5, 4), CELL_ON);
+    CHECK_INT(life_get(&l, 5, 6), CELL_ON);
+    life_free(&l);
+
+    /* Star Wars B2/S345/4: a lonely cell fades through states 2 and 3, then turns off */
+    life_init(&l, 12, 12);
+    rule_parse("starwars", &r);
+    life_set_rule(&l, r);
+    life_set(&l, 5, 5, CELL_ON, 0, 0);
+    life_step(&l);
+    CHECK_INT(life_get(&l, 5, 5), 2);
+    life_step(&l);
+    CHECK_INT(life_get(&l, 5, 5), 3);
+    life_step(&l);
+    CHECK_INT(life_get(&l, 5, 5), CELL_OFF);
+    CHECK_INT(life_population(&l), 0);
+    life_free(&l);
+
+    /* Life without Death B3/S012345678: nothing ever dies */
+    life_init(&l, 12, 12);
+    rule_parse("lifewithoutdeath", &r);
+    life_set_rule(&l, r);
+    life_set(&l, 5, 5, CELL_ON, 0, 0);
+    for (int i = 0; i < 5; i++)
+        life_step(&l);
+    CHECK_INT(life_get(&l, 5, 5), CELL_ON);
+    life_free(&l);
+
+    /* switching from a 4-state rule to a 3-state one drops cells in state 3 */
+    life_init(&l, 12, 12);
+    rule_parse("starwars", &r);
+    life_set_rule(&l, r);
+    life_set(&l, 2, 2, 3, 0, 0);
+    life_set(&l, 3, 3, 2, 0, 0);
+    life_set_rule(&l, rule_brain());
+    CHECK_INT(life_get(&l, 2, 2), CELL_OFF);
+    CHECK_INT(life_get(&l, 3, 3), 2);
     life_free(&l);
 }
 
@@ -156,6 +209,7 @@ void suite_life(void)
     test_glider_moves();
     test_highlife_b6();
     test_brain();
+    test_generic_rules();
     test_margin_absorbs();
     test_resize_and_tiny();
     test_patterns();

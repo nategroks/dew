@@ -20,7 +20,7 @@ void life_init(Life *l, int w, int h)
     l->age2 = xcalloc(n, sizeof *l->age2);
     l->tint = xcalloc(n, 1);
     l->tint2 = xcalloc(n, 1);
-    l->rule = RULE_CONWAY;
+    l->rule = rule_conway();
 }
 
 void life_free(Life *l)
@@ -96,12 +96,10 @@ uint8_t life_tint(const Life *l, int x, int y)
 
 void life_set_rule(Life *l, Rule r)
 {
-    if (l->rule == RULE_BRAIN && r != RULE_BRAIN) {
-        size_t n = (size_t)l->sw * (size_t)l->sh;
-        for (size_t i = 0; i < n; i++)
-            if (l->st[i] == CELL_DYING)
-                l->st[i] = CELL_OFF;
-    }
+    size_t n = (size_t)l->sw * (size_t)l->sh;
+    for (size_t i = 0; i < n; i++)
+        if (l->st[i] >= r.states)
+            l->st[i] = CELL_OFF;
     l->rule = r;
 }
 
@@ -129,7 +127,7 @@ static uint16_t older(uint16_t a)
 void life_step(Life *l)
 {
     const long sw = l->sw, sh = l->sh;
-    const int brain = l->rule == RULE_BRAIN, highlife = l->rule == RULE_HIGHLIFE;
+    const Rule r = l->rule;
     memset(l->st2, 0, (size_t)(sw * sh));
     for (long y = 1; y < sh - 1; y++) {
         for (long x = 1; x < sw - 1; x++) {
@@ -138,27 +136,21 @@ void life_step(Life *l)
             int n = (s[i - sw - 1] == CELL_ON) + (s[i - sw] == CELL_ON) + (s[i - sw + 1] == CELL_ON) +
                     (s[i - 1] == CELL_ON) + (s[i + 1] == CELL_ON) + (s[i + sw - 1] == CELL_ON) +
                     (s[i + sw] == CELL_ON) + (s[i + sw + 1] == CELL_ON);
-            uint8_t me = s[i];
-            if (brain) {
-                if (me == CELL_ON) {
-                    l->st2[i] = CELL_DYING;
-                    l->age2[i] = older(l->age[i]);
-                    l->tint2[i] = l->tint[i];
-                } else if (me == CELL_OFF && n == 2) {
-                    l->st2[i] = CELL_ON;
-                    l->age2[i] = 0;
-                    l->tint2[i] = majority_tint(l, i);
-                }
-            } else if (me == CELL_ON) {
-                if (n == 2 || n == 3) {
-                    l->st2[i] = CELL_ON;
-                    l->age2[i] = older(l->age[i]);
-                    l->tint2[i] = l->tint[i];
-                }
-            } else if (n == 3 || (highlife && n == 6)) {
+            uint8_t me = s[i], next = CELL_OFF;
+            if (me == CELL_ON)
+                next = (r.survive >> n) & 1 ? CELL_ON : r.states > 2 ? CELL_DYING : CELL_OFF;
+            else if (me >= CELL_DYING)
+                next = me + 1 < r.states ? (uint8_t)(me + 1) : CELL_OFF;
+            else if ((r.born >> n) & 1) {
                 l->st2[i] = CELL_ON;
                 l->age2[i] = 0;
                 l->tint2[i] = majority_tint(l, i);
+                continue;
+            }
+            if (next != CELL_OFF) {
+                l->st2[i] = next;
+                l->age2[i] = older(l->age[i]);
+                l->tint2[i] = l->tint[i];
             }
         }
     }

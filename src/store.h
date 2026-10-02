@@ -62,6 +62,8 @@ typedef struct {
     double remaining;    /* paused: seconds left */
     bool long_break;
     char *task; /* the task the wave is on; heap string owned by the SavedState */
+    char rule[32]; /* focus rule, e.g. "B3/S23"; "" if never set */
+    char base[32]; /* the config's focus_rule when this was saved */
 } SavedState;
 
 bool state_save(const char *path, const SavedState *s);

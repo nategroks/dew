@@ -209,7 +209,9 @@ static void test_state(void)
                     .wall_end = 1790950000,
                     .remaining = 812,
                     .long_break = true,
-                    .task = "fix grub = theme"};
+                    .task = "fix grub = theme",
+                    .rule = "B3678/S34678",
+                    .base = "B3/S23"};
     CHECK(state_save(f, &a));
     CHECK(state_load(f, &s));
     CHECK_STR(s.date, "2026-10-02");
@@ -218,6 +220,8 @@ static void test_state(void)
     CHECK_INT(s.remaining, 812);
     CHECK(s.long_break);
     CHECK_STR(s.task, "fix grub = theme");
+    CHECK_STR(s.rule, "B3678/S34678");
+    CHECK_STR(s.base, "B3/S23");
     state_clear(&s);
     put(f, "garbage\n");
     CHECK(!state_load(f, &s));
