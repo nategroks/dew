@@ -1,0 +1,562 @@
+<title>dew Life Pane</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+/* layout: one terminal window (task list | Life pane, note, key line) above a strip of preview controls and an event legend.
+   single dark look on purpose: it is a terminal mock in the Nord palette (polar night / snow storm / frost / aurora). */
+:root{
+  color-scheme: dark;
+  --page:#242933; --term:#2e3440; --band:#3b4252; --rule:#4c566a;
+  --violet:#5e81ac; --pink:#d08770; --magenta:#ebcb8b; --cyan:#88c0d0;
+  --ice:#8fbcbb; --lilac:#b48ead; --peach:#a3be8c;
+  --fg:#e5e9f0; --dim:#7b88a1; --faint:#4c566a;
+  --mono:"JetBrains Mono","DejaVu Sans Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--fg);font-family:var(--mono);font-size:14px;line-height:1.5;padding-inline:16px;padding-block:28px 48px}
+.wrap{max-width:1120px;margin:0 auto;display:grid;gap:22px}
+header{display:grid;gap:6px}
+header h1{margin:0;font-weight:300;font-size:clamp(22px,4vw,30px);letter-spacing:.01em;text-wrap:balance}
+header h1 b{font-weight:700;color:var(--magenta)}
+header p{margin:0;color:var(--dim);max-width:72ch}
+
+.term{background:var(--term);border:1px solid var(--rule);border-radius:6px;padding:18px 12px 10px;display:grid;gap:14px;box-shadow:0 0 0 1px #1d2128,0 24px 60px -24px rgba(136,192,208,.25);outline:none}
+.term:focus-visible{border-color:var(--cyan)}
+.panes{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:12px}
+@media (max-width:760px){.panes{grid-template-columns:minmax(0,1fr)}}
+.box{position:relative;border:1px solid var(--rule);padding:14px 10px 8px;min-width:0}
+.lbl{position:absolute;top:-.8em;left:10px;background:var(--term);padding:0 6px;color:var(--cyan);white-space:nowrap;max-width:calc(100% - 20px);overflow:hidden;text-overflow:ellipsis}
+.lbl.r{left:auto;right:10px}
+.lbl .m{color:var(--dim)}
+.sub{color:var(--dim);margin:10px 0 2px;border-top:1px dashed var(--faint);padding-top:8px}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;gap:.6ch;padding:0 4px;cursor:pointer;white-space:nowrap;border-radius:2px}
+li .mk{width:1ch;color:var(--magenta);flex:none}
+li .cb{flex:none;color:var(--dim)}
+li .tt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+li .wv{flex:none;color:var(--peach);font-variant-numeric:tabular-nums}
+li.sel{background:var(--band);color:var(--cyan)}
+li.done .tt{text-decoration:line-through;color:var(--faint)}
+li.done .cb{color:var(--violet)}
+li.active .tt{color:var(--magenta)}
+.life{padding:12px 8px 6px}
+canvas{display:block;width:100%;height:auto;aspect-ratio:540/288}
+.rulelbl{position:absolute;bottom:-.8em;right:10px;background:var(--term);padding:0 6px;color:var(--dim);font-size:12px}
+.note p{margin:0;color:var(--lilac);min-height:1.5em;overflow-wrap:anywhere}
+.note p.empty{color:var(--faint)}
+.keys{color:var(--dim);display:flex;flex-wrap:wrap;gap:4px 16px;padding:0 4px}
+.keys b{color:var(--cyan);font-weight:400}
+.keys .off{opacity:.45}
+
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button{font:inherit;color:var(--fg);background:var(--band);border:1px solid var(--rule);border-radius:4px;padding:6px 12px;cursor:pointer;display:inline-flex;gap:8px;align-items:center}
+button:hover{border-color:var(--violet)}
+button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+button kbd{font:inherit;color:var(--cyan)}
+button[aria-pressed="true"]{border-color:var(--magenta);color:var(--magenta)}
+.sep{flex:none;width:1px;align-self:stretch;background:var(--rule)}
+.seg{display:inline-flex;gap:0}
+.seg button{border-radius:0;margin-left:-1px}
+.seg button:first-child{border-radius:4px 0 0 4px;margin-left:0}
+.seg button:last-child{border-radius:0 4px 4px 0}
+#toast{color:var(--peach);min-height:1.5em}
+
+.legend{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 28px}
+@media (max-width:760px){.legend{grid-template-columns:minmax(0,1fr)}}
+.legend h2{grid-column:1/-1;margin:0;font-size:13px;font-weight:400;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.ev{display:grid;grid-template-columns:15ch minmax(0,1fr);gap:12px}
+.ev dt{color:var(--cyan)}
+.ev dd{margin:0;color:var(--fg)}
+.ramp{display:flex;gap:2px;align-items:center;flex-wrap:wrap}
+.ramp i{display:inline-block;width:22px;height:10px;border-radius:2px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><b>dew</b> · Life pane preview</h1>
+    <p>A throwaway mock of the screen we designed, recolored to Nord. The tasks are sample data. The timer runs 60× fast, so a 25-minute wave takes 25 seconds. Autoplay is on: it starts a wave, checks off a task, finishes the wave and takes a break. Press any key or button to drive it yourself.</p>
+  </header>
+
+  <section class="term" id="term" tabindex="0" aria-label="dew preview terminal">
+    <div class="panes">
+      <div class="box">
+        <span class="lbl">dew <span class="m">──</span> Today</span>
+        <ul id="today"></ul>
+        <div class="sub" id="backlogHead">Backlog</div>
+        <ul id="backlog"></ul>
+      </div>
+      <div class="box life">
+        <span class="lbl r" id="status">garden</span>
+        <canvas id="life" width="540" height="288" aria-label="Game of Life animation"></canvas>
+        <span class="rulelbl" id="rule">B3/S23 conway</span>
+      </div>
+    </div>
+    <div class="box note"><span class="lbl">note</span><p id="note"></p></div>
+    <div class="keys" id="keys">
+      <span><b>j/k</b> move</span><span><b>␣</b> wave start/pause</span><span><b>x</b> done</span>
+      <span><b>s</b> finish wave</span><span><b>t</b> today↔backlog</span><span><b>J/K</b> reorder</span>
+      <span><b>g</b> garden</span><span class="off"><b>a</b> add</span><span class="off"><b>e</b> edit</span>
+      <span class="off"><b>n</b> note</span><span class="off"><b>d</b> delete</span><span class="off"><b>q</b> quit</span>
+    </div>
+  </section>
+
+  <div class="controls">
+    <button id="bAuto" aria-pressed="true">autoplay</button>
+    <span class="sep"></span>
+    <button id="bSpace"><kbd>␣</kbd> start / pause wave</button>
+    <button id="bX"><kbd>x</kbd> check off task</button>
+    <button id="bS"><kbd>s</kbd> finish wave</button>
+    <button id="bG"><kbd>g</kbd> peek garden</button>
+    <span class="sep"></span>
+    <span class="seg" role="group" aria-label="sprite">
+      <button data-sprite="wave" aria-pressed="true">🌊</button>
+      <button data-sprite="ascii" aria-pressed="false">≈</button>
+      <button data-sprite="bolt" aria-pressed="false">⚡</button>
+    </span>
+  </div>
+  <div id="toast" role="status"></div>
+
+  <dl class="legend">
+    <h2>what the board does</h2>
+    <div class="ev"><dt>start a wave</dt><dd>a glitch tear, then a random soup seeds one band of the board (B3/S23, sometimes HighLife B36/S23)</dd></div>
+    <div class="ev"><dt>check off a task</dt><dd>a fleet of gliders or spaceships launches in a fresh color; their children keep that color</dd></div>
+    <div class="ev"><dt>finish a wave</dt><dd>an R-pentomino, acorn or diehard burst plus a glitch tear, and a new pattern is planted in today's garden</dd></div>
+    <div class="ev"><dt>break</dt><dd>a wave sweeps the board into Brian's Brain fireworks, and sweeps out to the garden when the break ends</dd></div>
+    <div class="ev"><dt>pause</dt><dd>the colony goes gray and slowly dies off</dd></div>
+    <div class="ev"><dt>cell age</dt><dd class="ramp" id="ramp"></dd></div>
+  </dl>
+</div>
+
+<script>
+(() => {
+/* Nord: nord0-3 polar night, nord4-6 snow storm, nord7-10 frost, nord11-15 aurora */
+const PAL = { bg:'#2e3440', band:'#3b4252', snow:'#eceff4', snow2:'#d8dee9', teal:'#8fbcbb', cyan:'#88c0d0',
+  blue:'#81a1c1', deep:'#5e81ac', dim:'#434c5e', red:'#bf616a', orange:'#d08770', yellow:'#ebcb8b',
+  green:'#a3be8c', purple:'#b48ead' };
+const SPRITES = { wave:'🌊', ascii:'≈', bolt:'⚡' };
+const SPEED = 60, FOCUS = 25*60, BREAK = 5*60;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- tasks (sample data) ---------- */
+let tasks = [
+  {t:'fix grub theme on the ESP', list:'today', done:false, waves:2, note:'GRUB lives on /boot (noauto ESP). Mount it before editing.'},
+  {t:'email site about HM backup window', list:'today', done:false, waves:0, note:'Ask for a 2-hour slot after shift change.'},
+  {t:'polymon P1: config loader', list:'today', done:false, waves:1, note:'TOML in, typed struct out. Errors name the line.'},
+  {t:'c-practice 02: pointers', list:'today', done:false, waves:0, note:'SPC o w for live mode.'},
+  {t:'polymon P0 scaffold', list:'today', done:true, waves:3, note:''},
+  {t:'retheme sddm login', list:'backlog', done:false, waves:0, note:''},
+  {t:'wafflebar: clock popover jitter', list:'backlog', done:false, waves:0, note:'Only on DP-5. Check the 60s ticker.'},
+  {t:'tv-underscan: make it persistent', list:'backlog', done:false, waves:0, note:'250px looked right.'},
+  {t:'sort ~/Pictures/glitch', list:'backlog', done:false, waves:0, note:''},
+];
+const initialTasks = JSON.parse(JSON.stringify(tasks));
+let sel = 0, active = -1, wavesToday = 3, sprite = 'wave';
+const view = () => [...tasks.filter(t => t.list==='today'), ...tasks.filter(t => t.list==='backlog')];
+
+const $ = id => document.getElementById(id);
+function row(task) {
+  const li = document.createElement('li');
+  const v = view();
+  if (v[sel] === task) li.classList.add('sel');
+  if (task.done) li.classList.add('done');
+  if (tasks[active] === task && (mode==='focus'||mode==='paused')) li.classList.add('active');
+  const parts = [
+    ['mk', tasks[active] === task && (mode==='focus'||mode==='paused') ? '▶' : ' '],
+    ['cb', task.done ? '[x]' : '[ ]'],
+    ['tt', task.t],
+    ['wv', task.waves ? SPRITES[sprite] + task.waves : ''],
+  ];
+  for (const [c, s] of parts) { const sp = document.createElement('span'); sp.className = c; sp.textContent = s; li.appendChild(sp); }
+  li.addEventListener('click', () => { takeOver(); sel = view().indexOf(task); renderList(); });
+  return li;
+}
+function renderList() {
+  const today = $('today'), back = $('backlog');
+  today.replaceChildren(...tasks.filter(t => t.list==='today').map(row));
+  const bl = tasks.filter(t => t.list==='backlog');
+  back.replaceChildren(...bl.map(row));
+  $('backlogHead').textContent = `Backlog (${bl.length})`;
+  const cur = view()[sel];
+  const n = $('note');
+  n.textContent = cur && cur.note ? cur.note : 'no note. press n to write one.';
+  n.className = cur && cur.note ? '' : 'empty';
+}
+
+/* ---------- Life engine ---------- */
+const W = 120, H = 64, M = 8, SW = W + 2*M, SH = H + 2*M, N = SW*SH;
+let A = new Uint8Array(N), B = new Uint8Array(N);
+let AG = new Uint16Array(N), BG = new Uint16Array(N);
+let AT = new Uint8Array(N), BT = new Uint8Array(N);
+const OFF = [-SW-1, -SW, -SW+1, -1, 1, SW-1, SW, SW+1];
+const tc = new Uint8Array(8);
+let rule = 'conway';
+
+function majorityTint(i) {
+  tc.fill(0);
+  for (const o of OFF) if (A[i+o] === 1) tc[AT[i+o]]++;
+  let best = 0;
+  for (let k = 1; k < 8; k++) if (tc[k] > tc[best]) best = k;
+  return best;
+}
+function step() {
+  const brain = rule === 'brain', hl = rule === 'highlife';
+  B.fill(0);
+  for (let y = 1; y < SH-1; y++) for (let x = 1; x < SW-1; x++) {
+    const i = y*SW + x, s = A[i];
+    let n = 0;
+    for (const o of OFF) if (A[i+o] === 1) n++;
+    if (brain) {
+      if (s === 1) { B[i] = 2; BG[i] = AG[i] + 1; BT[i] = AT[i]; }
+      else if (s === 0 && n === 2) { B[i] = 1; BG[i] = 0; BT[i] = majorityTint(i); }
+    } else if (s === 1) {
+      if (n === 2 || n === 3) { B[i] = 1; BG[i] = Math.min(AG[i] + 1, 999); BT[i] = AT[i]; }
+    } else if (n === 3 || (hl && n === 6)) { B[i] = 1; BG[i] = 0; BT[i] = majorityTint(i); }
+  }
+  // absorb anything that drifts into the outer margin so it never comes back
+  for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++)
+    if (x < 3 || x >= SW-3 || y < 3 || y >= SH-3) B[y*SW + x] = 0;
+  [A, B] = [B, A]; [AG, BG] = [BG, AG]; [AT, BT] = [BT, AT];
+}
+function setRule(r) {
+  if (rule === 'brain' && r !== 'brain') for (let i = 0; i < N; i++) if (A[i] === 2) A[i] = 0;
+  rule = r;
+  $('rule').textContent = { conway:'B3/S23 conway', highlife:'B36/S23 highlife', brain:"B2/S/3 brian's brain" }[r];
+}
+const clearBoard = () => { A.fill(0); AG.fill(0); AT.fill(0); };
+function put(bx, by, t, age = 0, s = 1) {
+  if (bx < -M+3 || bx >= W+M-3 || by < -M+3 || by >= H+M-3) return;
+  const i = (by+M)*SW + bx + M; A[i] = s; AG[i] = age; AT[i] = t;
+}
+const rnd = n => Math.floor(Math.random()*n);
+function soup(x0, y0, w, h, d, t = 0) {
+  for (let y = y0; y < y0+h; y++) for (let x = x0; x < x0+w; x++) if (Math.random() < d) put(x, y, t);
+}
+const pop = () => { let p = 0; for (let i = 0; i < N; i++) if (A[i]) p++; return p; };
+
+const P = {
+  glider:['.O.','..O','OOO'],
+  lwss:['.O..O','O....','O...O','.OOOO'],
+  rpent:['.OO','OO.','.O.'],
+  acorn:['.O.....','...O...','OO..OOO'],
+  diehard:['......O.','OO......','.O...OOO'],
+  block:['OO','OO'], beehive:['.OO.','O..O','.OO.'], loaf:['.OO.','O..O','.O.O','..O.'],
+  boat:['OO.','O.O','.O.'], tub:['.O.','O.O','.O.'], blinker:['OOO'], toad:['.OOO','OOO.'],
+  beacon:['OO..','OO..','..OO','..OO'],
+  penta:['..O....O..','OO.OOOO.OO','..O....O..'],
+  pulsar:['..OOO...OOO..','.............','O....O.O....O','O....O.O....O','O....O.O....O','..OOO...OOO..','.............',
+          '..OOO...OOO..','O....O.O....O','O....O.O....O','O....O.O....O','.............','..OOO...OOO..'],
+};
+function cellsOf(rows, fx = false, fy = false) {
+  const h = rows.length, w = rows[0].length, out = [];
+  rows.forEach((r, y) => [...r].forEach((c, x) => { if (c === 'O') out.push([fx ? w-1-x : x, fy ? h-1-y : y]); }));
+  return { cells: out, w, h };
+}
+const stamp = (p, bx, by, t, age = 0) => p.cells.forEach(([x, y]) => put(bx+x, by+y, t, age));
+
+/* tints: 0 = age ramp, 1..5 = fleet / garden colors */
+let tintCursor = 0;
+const nextTint = () => (tintCursor = tintCursor % 5 + 1);
+
+function fleet() {
+  const t = nextTint();
+  if (Math.random() < .55) {
+    const dx = Math.random() < .5 ? 1 : -1, dy = Math.random() < .5 ? 1 : -1;
+    const g = cellsOf(P.glider, dx < 0, dy < 0);
+    for (let k = 0; k < 5; k++) {
+      let bx = 2 + k*7, by = 2 + (4-k)*7;
+      if (dx < 0) bx = W - 3 - bx; if (dy < 0) by = H - 3 - by;
+      stamp(g, bx, by, t);
+    }
+  } else {
+    const dir = Math.random() < .5 ? 1 : -1, s = cellsOf(P.lwss, dir > 0);
+    for (let k = 0; k < 4; k++) {
+      const by = 5 + k*15, off = Math.abs(k - 1.5)*4 | 0;
+      stamp(s, dir > 0 ? 1 + off : W - 6 - off, by, t);
+    }
+  }
+}
+function burst() {
+  const pick = ['rpent','acorn','diehard'][rnd(3)];
+  stamp(cellsOf(P[pick], Math.random()<.5, Math.random()<.5), 40 + rnd(40), 22 + rnd(18), 0);
+}
+function brainSeed() {
+  for (let k = 0; k < 7; k++) {
+    const cx = 10 + rnd(W-20), cy = 8 + rnd(H-16), t = 1 + rnd(5);
+    for (let y = -4; y <= 4; y++) for (let x = -4; x <= 4; x++)
+      if (x*x + y*y <= 16 && Math.random() < .45) put(cx+x, cy+y, t);
+  }
+}
+
+/* ---------- garden ---------- */
+const garden = [];
+const ORDER = ['beehive','blinker','loaf','toad','boat','beacon','tub','block'];
+function plant() {
+  const n = garden.length + 1;
+  const name = n % 4 === 0 ? (n % 8 === 0 ? 'pulsar' : 'penta') : ORDER[(n - 1 - (n/4|0)) % ORDER.length];
+  const p = cellsOf(P[name]);
+  for (let tries = 0; tries < 80; tries++) {
+    const x = 3 + rnd(W - p.w - 6), y = 3 + rnd(H - p.h - 6);
+    const clash = garden.some(g => x < g.x + g.p.w + 4 && g.x < x + p.w + 4 && y < g.y + g.p.h + 4 && g.y < y + p.h + 4);
+    if (!clash) { garden.push({ p, x, y, t: 1 + (n % 5) }); return; }
+  }
+}
+function loadGarden() { clearBoard(); garden.forEach(g => stamp(g.p, g.x, g.y, g.t, 6)); }
+plant(); plant(); plant();
+
+/* ---------- colors ---------- */
+const hex = h => [1,3,5].map(k => parseInt(h.slice(k, k+2), 16));
+const mix = (a, b, f) => a.map((v, k) => Math.round(v + (b[k] - v)*f));
+const css = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+const RAMP = [[0,PAL.snow],[2,PAL.yellow],[4,PAL.teal],[8,PAL.cyan],[16,PAL.blue],[30,PAL.deep],[60,PAL.dim]];
+const TINTS = [null, PAL.orange, PAL.green, PAL.purple, PAL.red, PAL.yellow];
+const COL = [], GRAY = [];
+for (let t = 0; t < 6; t++) {
+  COL[t] = []; GRAY[t] = [];
+  for (let a = 0; a < 64; a++) {
+    let c;
+    if (t === 0) {
+      let k = 0; while (k < RAMP.length - 1 && RAMP[k+1][0] <= a) k++;
+      const [a0, c0] = RAMP[k], nx = RAMP[k+1];
+      c = nx ? mix(hex(c0), hex(nx[1]), (a - a0)/(nx[0] - a0)) : hex(c0);
+    } else c = mix(hex(TINTS[t]), hex(PAL.deep), Math.min(a/50, 1)*.6);
+    COL[t][a] = css(c);
+    const l = Math.round((.3*c[0] + .55*c[1] + .15*c[2]) * .45 + 30);
+    GRAY[t][a] = css([l, l + 4, l + 12]);
+  }
+}
+$('ramp').replaceChildren(...[0,1,2,4,8,16,30,63].map(a => { const i = document.createElement('i'); i.style.background = COL[0][a]; return i; }),
+  Object.assign(document.createElement('span'), { textContent: ' newborn → old', style: 'color:var(--dim)' }));
+
+/* ---------- render ---------- */
+const cv = $('life'), ctx = cv.getContext('2d');
+const CW = 9, CH = 18, COLS = 60, ROWS = 16, DX = 4.5, DY = 4.5;
+function fit() { const d = window.devicePixelRatio || 1; cv.width = 540*d; cv.height = 288*d; ctx.setTransform(d, 0, 0, d, 0, 0); }
+fit(); addEventListener('resize', fit);
+const GLYPHS = '@#%*&10SE';
+const BANDS = ['rgba(0,0,0,0)', 'rgba(59,66,82,.55)', 'rgba(0,0,0,0)', 'rgba(94,129,172,.07)'];
+let tear = 0, frame = 0, sweep = null, peek = null;
+const offs = new Float32Array(ROWS);
+
+function glyph(cx, r, color, ox = 0) {
+  ctx.fillStyle = color; ctx.font = '700 14px "JetBrains Mono", monospace';
+  ctx.fillText(GLYPHS[rnd(GLYPHS.length)], cx*CW + ox, r*CH + 14);
+}
+function render() {
+  ctx.fillStyle = PAL.bg; ctx.fillRect(0, 0, 540, 288);
+  for (let r = 0; r < ROWS; r++) { ctx.fillStyle = BANDS[r % 4]; ctx.fillRect(0, r*CH, 540, CH); }
+  for (let r = 0; r < ROWS; r++) offs[r] = tear > 0 && !reduce && Math.random() < .45 ? (rnd(7) - 3)*CW : 0;
+  const gray = mode === 'paused', idle = mode === 'idle' || peek;
+  const jitter = reduce ? 0 : .0012;
+  for (let by = 0; by < H; by++) {
+    const r = by >> 2, ox = offs[r], base = (by+M)*SW + M;
+    for (let bx = 0; bx < W; bx++) {
+      const i = base + bx, s = A[i];
+      if (!s) continue;
+      const a = idle ? Math.min(AG[i], 6) : Math.min(AG[i], 63);
+      const color = s === 2 ? PAL.purple : (gray ? GRAY : COL)[AT[i]][a];
+      if (Math.random() < jitter) { glyph(bx >> 1, r, color, ox); continue; }
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(bx*DX + DX/2 + ox, by*DY + DY/2, s === 2 ? 1.1 : 1.55, 0, 7); ctx.fill();
+    }
+  }
+  if (tear > 0) {
+    const cs = [PAL.snow, PAL.cyan, PAL.teal, PAL.blue, PAL.yellow];
+    for (let k = 0; k < 36; k++) glyph(rnd(COLS), rnd(ROWS), cs[rnd(cs.length)]);
+  }
+  if (sweep) drawSweep();
+}
+
+/* the ocean-wave wipe: clears the board behind a foaming front */
+function frontAt(by) { return sweep.x + 5*Math.sin(by*.2 + frame*.3) + 3*Math.sin(by*.07 - frame*.1); }
+function drawSweep() {
+  const foam = [PAL.snow, PAL.cyan, PAL.snow2, PAL.teal];
+  for (let by = 0; by < H; by++) {
+    const fx = frontAt(by);
+    for (let bx = Math.floor(fx - 10); bx <= Math.floor(fx + 1); bx++) {
+      if (bx < 0 || bx >= W) continue;
+      const crest = bx >= fx - 3;
+      if (Math.random() > (crest ? .75 : .12)) continue;
+      ctx.fillStyle = crest ? foam[rnd(4)] : 'rgba(136,192,208,.55)';
+      ctx.beginPath(); ctx.arc(bx*DX + DX/2, by*DY + DY/2, 1.55, 0, 7); ctx.fill();
+    }
+  }
+  const top = frontAt(8);
+  ctx.font = '18px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif';
+  ctx.fillStyle = PAL.snow;
+  ctx.fillText(SPRITES[sprite], Math.max(0, top*DX - 10), 24 + 4*Math.sin(frame*.4));
+}
+function startSweep(done) { sweep = { x: -12, done }; }
+function advanceSweep() {
+  sweep.x += reduce ? 6 : 3;
+  for (let by = 0; by < H; by++) {
+    const lim = Math.min(W, Math.floor(frontAt(by) - 1));
+    for (let bx = 0; bx < lim; bx++) A[(by+M)*SW + bx + M] = 0;
+  }
+  if (sweep.x > W + 14) { const d = sweep.done; sweep = null; d(); }
+}
+
+/* ---------- modes ---------- */
+let mode = 'idle', remaining = 0, excite = 0, highlifeLeft = 0, pending = [];
+const later = (frames, fn) => pending.push({ at: frame + frames, fn });
+
+function firstUndone() { return view().find(t => t.list === 'today' && !t.done); }
+function space() {
+  if (mode === 'focus') { mode = 'paused'; return; }
+  if (mode === 'paused') { mode = 'focus'; if (pop() < 60) soup(20, 20, 80, 24, .3); return; }
+  if (mode !== 'idle' || sweep) return;
+  let t = view()[sel];
+  if (!t || t.done) t = firstUndone();
+  if (!t) { toast('everything is done. nice.'); return; }
+  active = tasks.indexOf(t); mode = 'focus'; remaining = FOCUS; tear = 4;
+  later(3, () => { clearBoard(); setRule('conway'); soup(8, 6 + rnd(H - 30), W - 16, 20, .34); });
+  renderList();
+}
+function toggleDone() {
+  const t = view()[sel]; if (!t) return;
+  t.done = !t.done;
+  if (t.done) { fleet(); if (mode === 'idle' && !sweep) excite = 150; }
+  renderList();
+}
+function finishWave() {
+  if (mode !== 'focus' && mode !== 'paused') return;
+  if (active >= 0) tasks[active].waves++;
+  wavesToday++; plant(); burst(); tear = 6;
+  mode = 'break'; remaining = BREAK; setRule('conway');
+  later(45, () => startSweep(() => { setRule('brain'); brainSeed(); }));
+  renderList();
+}
+function endBreak() {
+  mode = 'ending';
+  startSweep(() => { setRule('conway'); loadGarden(); mode = 'idle'; active = -1; renderList(); });
+}
+function peekGarden() {
+  if (mode === 'idle' || sweep || peek) { tear = 3; return; }
+  peek = { A: A.slice(), AG: AG.slice(), AT: AT.slice(), rule, until: frame + 70 };
+  tear = 3; setRule('conway'); loadGarden();
+}
+function endPeek() { A.set(peek.A); AG.set(peek.AG); AT.set(peek.AT); setRule(peek.rule); peek = null; tear = 3; }
+
+function decay() { for (let i = 0; i < N; i++) if (A[i] && Math.random() < .03) A[i] = 0; }
+
+function tick() {
+  frame++;
+  pending = pending.filter(p => (p.at <= frame ? (p.fn(), false) : true));
+  if (peek) { if (frame % 8 === 0) step(); if (frame >= peek.until) endPeek(); }
+  else if (sweep) advanceSweep();
+  else switch (mode) {
+    case 'focus':
+      if (frame % (reduce ? 6 : 2) === 0) step();
+      if (frame % 60 === 0 && pop() < 90) soup(10 + rnd(W - 34), 6 + rnd(H - 26), 24, 20, .3);
+      if (highlifeLeft > 0 && --highlifeLeft === 0) setRule('conway');
+      if (frame % 400 === 0 && rule === 'conway' && Math.random() < .45) { setRule('highlife'); highlifeLeft = 180; }
+      break;
+    case 'paused': if (frame % 5 === 0) step(); decay(); break;
+    case 'break': if (frame % (reduce ? 4 : 1) === 0) step(); break;
+    case 'idle':
+      if (excite > 0) { step(); step(); if (--excite === 0) { tear = 3; loadGarden(); } }
+      else if (frame % 8 === 0) step();
+      break;
+  }
+  if (tear > 0) tear--;
+  render();
+}
+
+function clock(sec) { sec = Math.max(0, Math.ceil(sec)); return `${String(sec/60|0).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`; }
+function status() {
+  const s = SPRITES[sprite];
+  if (mode === 'focus') return `${s} ${clock(remaining)} focus · wave ${wavesToday + 1}`;
+  if (mode === 'paused') return `❚❚ ${clock(remaining)} paused · wave ${wavesToday + 1}`;
+  if (mode === 'break') return `${s} ${clock(remaining)} break`;
+  return `garden · ${wavesToday} ${s} today`;
+}
+let lastStatus = '';
+
+/* ---------- autoplay ---------- */
+let auto = true, autoWait = 1.2, autoStep = 0;
+function autoplay(dt) {
+  if (!auto) return;
+  if (autoWait > 0) { autoWait -= dt; return; }
+  switch (autoStep) {
+    case 0: {
+      if (mode !== 'idle' || sweep) return;
+      let t = firstUndone();
+      if (!t) { tasks = JSON.parse(JSON.stringify(initialTasks)); t = firstUndone(); }
+      sel = view().indexOf(t); renderList(); space(); autoWait = 7; autoStep = 1; break;
+    }
+    case 1: {
+      const v = view(), other = v.find(t => t.list === 'today' && !t.done && tasks.indexOf(t) !== active);
+      if (other) { const back = sel; sel = v.indexOf(other); toggleDone(); sel = back; renderList(); }
+      autoWait = 6; autoStep = 2; break;
+    }
+    case 2: finishWave(); autoStep = 3; break;
+    case 3: if (mode === 'idle' && !sweep) { autoWait = 4; autoStep = 0; } break;
+  }
+}
+function takeOver() {
+  if (!auto) return;
+  auto = false; $('bAuto').setAttribute('aria-pressed', 'false');
+  toast("autoplay off. you're driving.");
+}
+$('bAuto').addEventListener('click', () => {
+  auto = !auto; $('bAuto').setAttribute('aria-pressed', String(auto));
+  if (auto) { autoWait = .5; autoStep = mode === 'idle' ? 0 : 3; }
+});
+
+let toastTimer;
+function toast(msg) { $('toast').textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').textContent = '', 3200); }
+
+/* ---------- input ---------- */
+function move(d) { const n = view().length; sel = (sel + d + n) % n; renderList(); }
+function reorder(d) {
+  const t = view()[sel], peers = tasks.filter(x => x.list === t.list), k = peers.indexOf(t), o = peers[k + d];
+  if (!o) return;
+  const i = tasks.indexOf(t), j = tasks.indexOf(o);
+  [tasks[i], tasks[j]] = [tasks[j], tasks[i]];
+  if (active === i) active = j; else if (active === j) active = i;
+  sel = view().indexOf(t); renderList();
+}
+function moveList() {
+  const t = view()[sel]; t.list = t.list === 'today' ? 'backlog' : 'today';
+  sel = view().indexOf(t); renderList();
+}
+const ACTIONS = {
+  j: () => move(1), ArrowDown: () => move(1), k: () => move(-1), ArrowUp: () => move(-1),
+  J: () => reorder(1), K: () => reorder(-1), ' ': space, x: toggleDone, s: finishWave, g: peekGarden, t: moveList,
+  a: () => toast('a adds a task in dew. not wired up in this preview.'),
+  e: () => toast('e edits the title in dew. not wired up in this preview.'),
+  n: () => toast('n opens the note in $EDITOR in dew. not wired up in this preview.'),
+  d: () => toast('d deletes after a y/n prompt in dew. not wired up in this preview.'),
+  q: () => toast('q quits dew.'),
+};
+addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.tagName === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
+  const f = ACTIONS[e.key]; if (!f) return;
+  e.preventDefault(); takeOver(); f();
+});
+const btn = (id, f) => $(id).addEventListener('click', () => { takeOver(); f(); });
+btn('bSpace', space); btn('bX', toggleDone); btn('bS', finishWave); btn('bG', peekGarden);
+document.querySelectorAll('[data-sprite]').forEach(b => b.addEventListener('click', () => {
+  sprite = b.dataset.sprite;
+  document.querySelectorAll('[data-sprite]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+  renderList();
+}));
+
+/* ---------- loop ---------- */
+loadGarden(); renderList(); render();
+let last = performance.now(), acc = 0;
+function loop(now) {
+  const dt = Math.min(.25, (now - last)/1000); last = now; acc += dt;
+  autoplay(dt);
+  if (mode === 'focus' || mode === 'break') {
+    remaining -= dt*SPEED;
+    if (remaining <= 0) { if (mode === 'focus') finishWave(); else endBreak(); }
+  }
+  while (acc >= .05) { acc -= .05; tick(); }
+  const s = status(); if (s !== lastStatus) { $('status').textContent = s; lastStatus = s; }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
