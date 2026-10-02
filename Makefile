@@ -15,7 +15,7 @@ DEW_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc \
 
 CORE := util tasks taskfile config wave store life patterns garden director \
         palette braille layout lineedit
-UI   :=
+UI   := render app nudge
 
 CORE_OBJ := $(CORE:%=build/%.o)
 UI_OBJ   := $(UI:%=build/%.o)

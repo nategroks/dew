@@ -1,3 +1,4 @@
+#include "app.h"
 #include "store.h"
 #include "util.h"
 
@@ -103,6 +104,5 @@ int main(int argc, char **argv)
         usage(stderr);
         return 2;
     }
-    usage(stderr);
-    return 2;
+    return app_main(file);
 }
