@@ -29,9 +29,14 @@ static void on_signal(int sig)
 
 static double mono_now(void)
 {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double)ts.tv_sec + ts.tv_nsec / 1e9;
+    return clock_now(); /* keeps counting through suspend */
+}
+
+static void set_str(char **dst, const char *src)
+{
+    char *copy = src ? xstrdup(src) : NULL;
+    free(*dst);
+    *dst = copy;
 }
 
 static void local_time(const char *fmt, char *out, size_t n)
@@ -90,7 +95,7 @@ static void move_sel(App *a, int delta)
 
 static void refind_active(App *a)
 {
-    Task *t = a->active_title[0] ? doc_find_title(&a->doc, a->active_title, NULL, NULL) : NULL;
+    Task *t = a->active_title ? doc_find_title(&a->doc, a->active_title, NULL, NULL) : NULL;
     a->active_id = t ? t->id : 0;
 }
 
@@ -98,16 +103,14 @@ static void refind_active(App *a)
 
 static void sync_file(App *a)
 {
-    char keep[256] = "";
     Task *t = selected(a);
-    if (t)
-        snprintf(keep, sizeof keep, "%s", t->title);
+    char *keep = t ? xstrdup(t->title) : NULL;
     size_t keep_sel = a->sel;
     ParseError e;
     int r = tasks_reload_if_changed(a->paths.tasks_path, &a->doc, &a->stamp, &e);
     if (r == 1) {
         a->file_broken = false;
-        Task *k = keep[0] ? doc_find_title(&a->doc, keep, NULL, NULL) : NULL;
+        Task *k = keep ? doc_find_title(&a->doc, keep, NULL, NULL) : NULL;
         if (k)
             select_id(a, k->id);
         else {
@@ -117,24 +120,34 @@ static void sync_file(App *a)
         refind_active(a);
     } else if (r == -1) {
         if (!a->file_broken)
-            say(a, true, "tasks.md line %zu: %s. dew won't save until it's fixed.", e.line, e.msg);
+            say(a, true, "tasks.md line %zu: %s. dew won't change it until it's fixed.", e.line, e.msg);
         a->file_broken = true;
+        a->broken_line = e.line;
     }
+    free(keep);
 }
 
+#define MUT_REFUSED (-100)
+
+/* Lock, reload if changed, and refuse while tasks.md is broken (a change made
+   now would be lost when the fixed file is reloaded). */
 static int mut_begin(App *a)
 {
     int lk = lock_file_begin(a->paths.tasks_path);
     sync_file(a);
+    if (a->file_broken) {
+        lock_file_end(lk);
+        say(a, true, "tasks.md line %zu has an error. Fix it first; dew won't change the list until then.",
+            a->broken_line);
+        return MUT_REFUSED;
+    }
     return lk;
 }
 
 static void mut_end(App *a, int lk, bool changed)
 {
     if (changed) {
-        if (a->file_broken)
-            say(a, true, "Not saved: tasks.md has an error. Fix it and dew will reload it.");
-        else if (!tasks_save(a->paths.tasks_path, &a->doc, &a->stamp))
+        if (!tasks_save(a->paths.tasks_path, &a->doc, &a->stamp))
             say(a, true, "Could not save %s: %s", a->paths.tasks_path, strerror(errno));
     }
     lock_file_end(lk);
@@ -172,7 +185,7 @@ static void save_state(App *a)
     s.long_break = w.long_break;
     s.remaining = w.remaining;
     s.wall_end = (long long)time(NULL) + (long long)(w.remaining + 0.5);
-    snprintf(s.task, sizeof s.task, "%s", a->active_title);
+    s.task = a->active_title; /* borrowed, not freed */
     if (!state_save(a->paths.state_path, &s))
         say(a, true, "Could not save the wave state: %s", strerror(errno));
 }
@@ -182,6 +195,8 @@ static void save_state(App *a)
 static void act_toggle(App *a)
 {
     int lk = mut_begin(a);
+    if (lk == MUT_REFUSED)
+        return;
     Task *t = selected(a);
     bool now_done = false;
     if (t) {
@@ -196,6 +211,8 @@ static void act_toggle(App *a)
 static void act_move_list(App *a)
 {
     int lk = mut_begin(a);
+    if (lk == MUT_REFUSED)
+        return;
     Task *t = selected(a);
     unsigned id = t ? t->id : 0;
     if (t)
@@ -208,6 +225,8 @@ static void act_move_list(App *a)
 static void act_reorder(App *a, int delta)
 {
     int lk = mut_begin(a);
+    if (lk == MUT_REFUSED)
+        return;
     Task *t = selected(a);
     unsigned id = t ? t->id : 0;
     bool moved = t && doc_reorder(&a->doc, id, delta);
@@ -216,13 +235,26 @@ static void act_reorder(App *a, int delta)
         select_id(a, id);
 }
 
+/* The task an edit/delete prompt was opened on, even if tasks.md was reloaded since. */
+static Task *prompt_target(App *a)
+{
+    Task *t = doc_find(&a->doc, a->prompt_id, NULL, NULL);
+    if (t && a->prompt_title && strcmp(t->title, a->prompt_title) == 0)
+        return t;
+    return a->prompt_title ? doc_find_title(&a->doc, a->prompt_title, NULL, NULL) : NULL;
+}
+
 static void act_delete(App *a)
 {
     int lk = mut_begin(a);
-    Task *t = selected(a);
+    if (lk == MUT_REFUSED)
+        return;
+    Task *t = prompt_target(a);
+    if (!t)
+        say(a, true, "That task changed on disk, so nothing was deleted.");
     if (t && t->id == a->active_id) {
         a->active_id = 0;
-        a->active_title[0] = '\0';
+        set_str(&a->active_title, NULL);
     }
     bool gone = t && doc_delete(&a->doc, t->id);
     mut_end(a, lk, gone);
@@ -231,6 +263,8 @@ static void act_delete(App *a)
 static void act_add(App *a, const char *title)
 {
     int lk = mut_begin(a);
+    if (lk == MUT_REFUSED)
+        return;
     unsigned id = doc_add(&a->doc, a->add_list, title)->id;
     mut_end(a, lk, true);
     select_id(a, id);
@@ -239,12 +273,16 @@ static void act_add(App *a, const char *title)
 static void act_edit(App *a, const char *title)
 {
     int lk = mut_begin(a);
-    Task *t = selected(a);
+    if (lk == MUT_REFUSED)
+        return;
+    Task *t = prompt_target(a);
+    if (!t)
+        say(a, true, "That task changed on disk, so nothing was renamed.");
     if (t) {
         bool was_active = t->id == a->active_id;
         task_set_title(t, title);
         if (was_active)
-            snprintf(a->active_title, sizeof a->active_title, "%s", t->title);
+            set_str(&a->active_title, t->title);
     }
     mut_end(a, lk, t != NULL);
 }
@@ -302,16 +340,28 @@ static char *run_editor(App *a, const char *text)
 
 static void act_note(App *a)
 {
+    sync_file(a);
+    if (a->file_broken) {
+        say(a, true, "tasks.md line %zu has an error. Fix it first; dew won't change the list until then.",
+            a->broken_line);
+        return;
+    }
     Task *t = selected(a);
     if (!t)
         return;
     unsigned id = t->id;
-    char title[256];
-    snprintf(title, sizeof title, "%s", t->title);
+    char *title = xstrdup(t->title);
     char *note = run_editor(a, t->note ? t->note : "");
-    if (!note)
+    if (!note) {
+        free(title);
         return;
+    }
     int lk = mut_begin(a);
+    if (lk == MUT_REFUSED) {
+        free(note);
+        free(title);
+        return;
+    }
     Task *u = doc_find(&a->doc, id, NULL, NULL);
     if (!u || strcmp(u->title, title) != 0)
         u = doc_find_title(&a->doc, title, NULL, NULL); /* the file was reloaded meanwhile */
@@ -321,6 +371,7 @@ static void act_note(App *a)
         say(a, true, "That task is gone, so the note was not saved.");
     mut_end(a, lk, u != NULL);
     free(note);
+    free(title);
 }
 
 /* ---- waves ---- */
@@ -328,10 +379,12 @@ static void act_note(App *a)
 static void count_wave(App *a)
 {
     int lk = mut_begin(a);
-    Task *t = a->active_id ? doc_find(&a->doc, a->active_id, NULL, NULL) : NULL;
-    if (t)
-        t->waves++;
-    mut_end(a, lk, t != NULL);
+    if (lk != MUT_REFUSED) {
+        Task *t = a->active_id ? doc_find(&a->doc, a->active_id, NULL, NULL) : NULL;
+        if (t)
+            t->waves++;
+        mut_end(a, lk, t != NULL);
+    }
 
     char hm[6];
     local_time("%H:%M", hm, sizeof hm);
@@ -384,7 +437,7 @@ static void act_space(App *a, double now)
         }
         wave_start(&a->wave, now);
         a->active_id = t->id;
-        snprintf(a->active_title, sizeof a->active_title, "%s", t->title);
+        set_str(&a->active_title, t->title);
         director_on_wave_start(&a->dir);
         break;
     }
@@ -422,13 +475,16 @@ static void act_abandon(App *a)
 static void restore_wave(App *a)
 {
     SavedState s;
-    if (!state_load(a->paths.state_path, &s) || s.mode == WAVE_IDLE)
+    if (!state_load(a->paths.state_path, &s) || s.mode == WAVE_IDLE) {
+        state_clear(&s);
         return;
+    }
     double now = mono_now();
     WaveSnap w = {s.mode, s.mode == WAVE_PAUSED ? s.remaining : (double)(s.wall_end - (long long)time(NULL)),
                   s.long_break};
     wave_restore(&a->wave, w, now);
-    snprintf(a->active_title, sizeof a->active_title, "%s", s.task);
+    set_str(&a->active_title, s.task && *s.task ? s.task : NULL);
+    state_clear(&s);
     refind_active(a);
     if (s.mode == WAVE_BREAK) {
         director_on_wave_finish(&a->dir);
@@ -450,8 +506,8 @@ static void check_day(App *a)
         return;
     memcpy(a->today, today, sizeof today);
     int lk = mut_begin(a);
-    int moved = doc_archive(&a->doc, a->today);
-    mut_end(a, lk, moved > 0);
+    if (lk != MUT_REFUSED)
+        mut_end(a, lk, doc_archive(&a->doc, a->today) > 0);
     garden_free(&a->garden);
     load_garden(a);
     a->wave.waves_today = (int)a->garden.n;
@@ -505,8 +561,11 @@ static void start_prompt(App *a, PromptKind kind)
         doc_view_at(&a->doc, a->sel, &l);
         a->add_list = t ? l : LIST_TODAY;
         le_init(&a->le, "");
-    } else if (kind == PROMPT_EDIT) {
-        le_init(&a->le, t->title);
+    } else {
+        a->prompt_id = t->id;
+        set_str(&a->prompt_title, t->title);
+        if (kind == PROMPT_EDIT)
+            le_init(&a->le, t->title);
     }
 }
 
@@ -693,6 +752,8 @@ static void teardown(App *a)
         doc_free(&a->doc);
     if (a->instance_fd >= 0)
         lock_file_end(a->instance_fd);
+    free(a->active_title);
+    free(a->prompt_title);
     paths_free(&a->paths);
 }
 

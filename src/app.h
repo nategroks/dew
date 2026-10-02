@@ -25,11 +25,12 @@ typedef struct App {
     TaskDoc doc;
     FileStamp stamp;
     bool file_broken; /* tasks.md changed on disk and doesn't parse: don't save */
+    size_t broken_line;
     size_t sel, scroll;
 
     Wave wave;
     unsigned active_id;    /* the task the wave is on (0 = none) */
-    char active_title[256];
+    char *active_title;    /* heap; NULL when the wave has no task */
     char today[11];
 
     Garden garden;
@@ -43,6 +44,8 @@ typedef struct App {
     PromptKind prompt;
     LineEdit le;
     ListId add_list;
+    unsigned prompt_id;    /* the task an edit/delete prompt was opened on */
+    char *prompt_title;
     int cur_y, cur_x; /* where the prompt cursor goes */
 
     char msg[200];

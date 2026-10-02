@@ -118,13 +118,27 @@ char *slurp(const char *path, size_t *len)
 
 bool write_atomic(const char *path, const char *data, size_t len, bool keep_bak)
 {
-    char *tmp = suffixed(path, ".tmp");
+    /* Write through symlinks (a tasks.md linked into a vault stays linked)
+       and keep the existing file's permissions. */
+    char *real = realpath(path, NULL);
+    if (!real) {
+        if (errno != ENOENT)
+            return false;
+        real = xstrdup(path);
+    }
+    mode_t mode = 0600;
+    struct stat old;
+    if (stat(real, &old) == 0)
+        mode = old.st_mode & 07777;
+
+    char *tmp = suffixed(real, ".tmp");
     int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
     if (fd < 0) {
         free(tmp);
+        free(real);
         return false;
     }
-    bool ok = true;
+    bool ok = fchmod(fd, mode) == 0;
     size_t off = 0;
     while (ok && off < len) {
         ssize_t w = write(fd, data + off, len - off);
@@ -140,21 +154,33 @@ bool write_atomic(const char *path, const char *data, size_t len, bool keep_bak)
     if (close(fd) != 0)
         ok = false;
     if (ok && keep_bak) {
-        char *bak = suffixed(path, ".bak");
+        char *bak = suffixed(real, ".bak");
         unlink(bak);
-        if (link(path, bak) != 0 && errno != ENOENT) {
+        if (link(real, bak) != 0 && errno != ENOENT) {
             /* no .bak is not worth failing a save over */
         }
         free(bak);
     }
-    if (ok && rename(tmp, path) != 0)
+    if (ok && rename(tmp, real) != 0)
         ok = false;
     if (!ok) {
         int e = errno;
         unlink(tmp);
         errno = e;
+    } else {
+        char *dir = xstrdup(real);
+        char *slash = strrchr(dir, '/');
+        if (slash)
+            *(slash == dir ? slash + 1 : slash) = '\0';
+        int dfd = open(slash ? dir : ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+        if (dfd >= 0) {
+            fsync(dfd); /* make the rename itself durable */
+            close(dfd);
+        }
+        free(dir);
     }
     free(tmp);
+    free(real);
     return ok;
 }
 
@@ -280,7 +306,8 @@ bool state_save(const char *path, const SavedState *s)
     Sbuf b;
     sb_init(&b);
     sb_printf(&b, "date=%s\nmode=%s\nend=%lld\nremaining=%.0f\nlong=%d\ntask=%s\n", s->date,
-              MODE_NAMES[s->mode], s->wall_end, s->remaining, s->long_break ? 1 : 0, s->task);
+              MODE_NAMES[s->mode], s->wall_end, s->remaining, s->long_break ? 1 : 0,
+              s->task ? s->task : "");
     bool ok = write_atomic(path, b.buf, b.len, false);
     sb_free(&b);
     return ok;
@@ -314,9 +341,17 @@ bool state_load(const char *path, SavedState *s)
             s->remaining = strtod(v, NULL);
         else if (strcmp(k, "long") == 0)
             s->long_break = strcmp(v, "1") == 0;
-        else if (strcmp(k, "task") == 0)
-            snprintf(s->task, sizeof s->task, "%s", v);
+        else if (strcmp(k, "task") == 0) {
+            free(s->task);
+            s->task = xstrdup(v);
+        }
     }
     free(text);
     return have_mode;
+}
+
+void state_clear(SavedState *s)
+{
+    free(s->task);
+    s->task = NULL;
 }

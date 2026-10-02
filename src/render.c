@@ -71,6 +71,8 @@ static short pair_of(uint32_t fg, uint32_t bg)
     if (depth == 0)
         return 0;
     short f = color_index(fg), b = color_index(bg);
+    if (depth == 8 && f == b) /* e.g. nord3 borders on nord0 both map to black */
+        f = b == COLOR_BLACK ? COLOR_BLUE : COLOR_BLACK;
     for (int i = 0; i < npairs; i++)
         if (pairs[i].fg == f && pairs[i].bg == b)
             return pairs[i].pair;
@@ -237,7 +239,7 @@ static void draw_list(App *a)
                     : active  ? p->ui[UI_ACTIVE]
                     : sel     ? p->ui[UI_SEL]
                               : p->ui[UI_TEXT];
-        attr_t at = depth == 0 && sel ? A_REVERSE : A_NORMAL;
+        attr_t at = depth < 256 && sel ? A_REVERSE : A_NORMAL; /* few colors: no distinct sel_bg */
         pen(fg, bg, at);
         fill(y, in.x, in.w);
         mvaddstr(y, in.x, active ? "▶" : " ");
@@ -433,10 +435,9 @@ static void draw_keys(App *a)
         return;
     }
     if (a->prompt == PROMPT_DELETE) {
-        Task *t = doc_view_at(&a->doc, a->sel, NULL);
         Sbuf q;
         sb_init(&q);
-        sb_printf(&q, "Delete \"%s\"? y/n", t ? t->title : "");
+        sb_printf(&q, "Delete \"%s\"? y/n", a->prompt_title ? a->prompt_title : "");
         pen(p->ui[UI_WARN], p->bg, A_NORMAL);
         put_text(y, 0, w, q.buf, 0);
         sb_free(&q);

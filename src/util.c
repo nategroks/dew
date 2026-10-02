@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static void oom(void)
 {
@@ -225,4 +226,20 @@ int utf8_encode(uint32_t cp, char out[4])
     out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
     out[3] = (char)(0x80 | (cp & 0x3F));
     return 4;
+}
+
+int clock_source(void)
+{
+#ifdef CLOCK_BOOTTIME
+    return CLOCK_BOOTTIME;
+#else
+    return CLOCK_MONOTONIC;
+#endif
+}
+
+double clock_now(void)
+{
+    struct timespec ts;
+    clock_gettime(clock_source(), &ts);
+    return (double)ts.tv_sec + ts.tv_nsec / 1e9;
 }

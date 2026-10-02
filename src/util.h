@@ -42,4 +42,9 @@ bool parse_int(const char *s, int *out);
 int utf8_decode(const char *s, uint32_t *cp); /* bytes consumed, 0 at NUL */
 int utf8_encode(uint32_t cp, char out[4]);    /* bytes written */
 
+/* Seconds from a clock that never jumps with wall-clock changes but keeps
+   counting through suspend (CLOCK_BOOTTIME where available). */
+double clock_now(void);
+int clock_source(void);
+
 #endif

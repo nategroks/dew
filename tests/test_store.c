@@ -218,9 +218,48 @@ static void test_state(void)
     CHECK_INT(s.remaining, 812);
     CHECK(s.long_break);
     CHECK_STR(s.task, "fix grub = theme");
+    state_clear(&s);
     put(f, "garbage\n");
     CHECK(!state_load(f, &s));
+    state_clear(&s);
+
+    char long_title[301];
+    memset(long_title, 'x', 300);
+    long_title[300] = '\0';
+    SavedState b = {.date = "2026-10-02", .mode = WAVE_FOCUS, .task = long_title};
+    CHECK(state_save(f, &b));
+    CHECK(state_load(f, &s));
+    CHECK_STR(s.task, long_title);
+    state_clear(&s);
     free(f);
+}
+
+static void test_symlink_and_mode_kept(void)
+{
+    char *sub = path_in("vault");
+    CHECK(mkdir(sub, 0755) == 0);
+    char *target = path_in("vault/tasks.md");
+    put(target, "# Today\n\n# Backlog\n");
+    CHECK(chmod(target, 0644) == 0);
+    char *link = path_in("linked.md");
+    CHECK(symlink(target, link) == 0);
+
+    CHECK(write_atomic(link, "new\n", 4, true));
+    struct stat st;
+    CHECK(lstat(link, &st) == 0 && S_ISLNK(st.st_mode)); /* still a link */
+    char *got = slurp(target, NULL);
+    CHECK_STR(got, "new\n"); /* the target was written */
+    free(got);
+    CHECK(stat(target, &st) == 0);
+    CHECK_INT(st.st_mode & 0777, 0644); /* permissions kept */
+    char *bak = path_in("vault/tasks.md.bak");
+    got = slurp(bak, NULL);
+    CHECK_STR(got, "# Today\n\n# Backlog\n");
+    free(got);
+    free(bak);
+    free(sub);
+    free(target);
+    free(link);
 }
 
 void suite_store(void)
@@ -235,5 +274,6 @@ void suite_store(void)
     test_locks();
     test_paths();
     test_state();
+    test_symlink_and_mode_kept();
     remove_dir();
 }

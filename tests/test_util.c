@@ -2,6 +2,7 @@
 #include "util.h"
 
 #include <stdlib.h>
+#include <time.h>
 
 static void test_sbuf(void)
 {
@@ -74,10 +75,20 @@ static void test_utf8(void)
     CHECK(memcmp(out, "≈", 3) == 0);
 }
 
+static void test_clock(void)
+{
+#ifdef CLOCK_BOOTTIME
+    CHECK_INT(clock_source(), CLOCK_BOOTTIME); /* keeps counting through suspend */
+#endif
+    double a = clock_now(), b = clock_now();
+    CHECK(a > 0 && b >= a);
+}
+
 void suite_util(void)
 {
     test_sbuf();
     test_rng();
     test_parse_int();
     test_utf8();
+    test_clock();
 }

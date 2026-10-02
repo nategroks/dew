@@ -61,10 +61,11 @@ typedef struct {
     long long wall_end;  /* focus/break: wall-clock epoch seconds when it ends */
     double remaining;    /* paused: seconds left */
     bool long_break;
-    char task[256];
+    char *task; /* the task the wave is on; heap string owned by the SavedState */
 } SavedState;
 
 bool state_save(const char *path, const SavedState *s);
 bool state_load(const char *path, SavedState *s); /* false if missing or unreadable */
+void state_clear(SavedState *s);                  /* frees s->task */
 
 #endif
