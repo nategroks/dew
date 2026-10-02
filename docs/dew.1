@@ -1,0 +1,218 @@
+.TH DEW 1 2026-10-02 "dew 0.1.0" "User Commands"
+.SH NAME
+dew \- terminal to-do list with waves and a Game of Life garden
+.SH SYNOPSIS
+.B dew
+.RB [ \-\-file
+.IR path ]
+.br
+.B dew
+.RB [ \-\-file
+.IR path ]
+.B add
+.RB [ \-t ]
+.I text ...
+.br
+.B dew
+.BR \-\-help " | " \-\-version
+.SH DESCRIPTION
+.B dew
+is a to-do list you knock out with a pomodoro timer.
+A pomodoro is called a
+.IR wave .
+There are two lists:
+.B Today
+and the
+.BR Backlog .
+Start a wave on a task, work until the timer ends, take a break, repeat.
+.PP
+The right-hand pane runs a Game of Life board that reacts to what you do.
+Starting a wave seeds it, checking off a task launches a fleet of gliders,
+finishing a wave sets off a burst and plants a pattern in today's
+.IR garden ,
+and a break washes the board with a wave into Brian's Brain fireworks.
+Pausing turns the colony gray and lets it die off.
+.PP
+The pane is hidden when the terminal is smaller than 80\(mu24.
+.SH KEYS
+.TP 12
+.BR j " " k " " \(da " " \(ua
+Move the selection. Today and Backlog form one list.
+.TP
+.BR g " " G
+Jump to the top or bottom.
+.TP
+.B Tab
+Jump between Today and Backlog.
+.TP
+.B a
+Add a task to the list the selection is in.
+.TP
+.B e
+Edit the selected task's title.
+.TP
+.B n
+Edit the note in
+.BR $VISUAL ,
+.BR $EDITOR ,
+or
+.BR vi .
+.TP
+.B x
+Mark done or not done.
+.TP
+.B t
+Move between Today and Backlog.
+.TP
+.BR J " " K
+Move the task down or up within its list.
+.TP
+.B d
+Delete, after a y/n prompt.
+.TP
+.B Space
+Start a wave on the selected task (or the first open task in Today),
+pause it, or resume it. During a break it skips the rest of the break.
+.TP
+.B s
+Finish the wave now (it counts), or end the break.
+.TP
+.B S
+Abandon the wave. It does not count and plants nothing.
+.TP
+.B w
+Show today's garden full screen. Any key returns.
+.TP
+.B ?
+Show the keys.
+.TP
+.B q
+Quit. A running wave is saved and picks up where it was next time.
+.PP
+In the add and edit prompt:
+.B Enter
+saves,
+.B Esc
+cancels,
+.B Ctrl\-U
+clears to the start, and
+.BR \(<- " " \(-> " " Home " " End " " Backspace " " Delete
+work as usual.
+.SH WAVES
+A wave is 25 minutes of focus followed by a 5-minute break, or a
+15-minute break after every 4th wave.
+The break ends by itself; dew never starts the next wave for you.
+At the end of each focus and break dew rings the terminal bell and,
+if
+.B notify\-send
+is installed, shows a desktop notification.
+.PP
+A finished wave adds one to the task's wave count, shown as
+.B \[u1F30A]
+followed by the count.
+.SH FILES
+.TP
+.I $XDG_DATA_HOME/dew/tasks.md
+The tasks (default
+.IR ~/.local/share/dew/tasks.md ).
+It is plain Markdown and safe to edit by hand, even while dew is
+running: dew notices within a second and reloads it.
+.RS
+.PP
+.nf
+# Today
+\- [ ] fix grub theme <!\-\- dew waves=2 \-\->
+  A note is the indented lines under a task.
+\- [x] scaffold polymon <!\-\- dew waves=3 done=2026\-10\-02 \-\->
+
+# Backlog
+\- [ ] retheme sddm login
+.fi
+.PP
+Lines dew doesn't understand are kept as they are.
+Done tasks move to a
+.B # Done
+.I date
+section on the next day.
+dew saves after every change through a temporary file, keeps the
+previous version as
+.IR tasks.md.bak ,
+and never overwrites a file it cannot parse; it names the bad line instead.
+.RE
+.TP
+.I $XDG_DATA_HOME/dew/garden/YYYY\-MM\-DD
+One line per finished wave: time, pattern, position, color.
+.TP
+.I $XDG_DATA_HOME/dew/state
+The running wave, so it survives a restart.
+.TP
+.I $XDG_CONFIG_HOME/dew/config
+Settings (default
+.IR ~/.config/dew/config ).
+.TP
+.I $XDG_CONFIG_HOME/dew/colors
+Optional overrides for the Nord palette.
+.SH CONFIGURATION
+The config file holds
+.I key " = " value
+lines; # starts a comment.
+.TP 14
+.BR focus " (25)"
+Focus minutes, 1\-180.
+.TP
+.BR short_break " (5)"
+Break minutes, 1\-60.
+.TP
+.BR long_break " (15)"
+Long break minutes, 1\-120.
+.TP
+.BR long_every " (4)"
+A long break after this many waves, 1\-12.
+.TP
+.BR sprite " (wave)"
+.B wave
+(\[u1F30A]),
+.B ascii
+(\(~~) or
+.B bolt
+(\[u26A1]).
+.TP
+.BR bell " (1)"
+Ring the terminal bell at the end of focus and breaks.
+.TP
+.BR notify " (1)"
+Show desktop notifications.
+.TP
+.BR fps " (20)"
+Animation frames per second, 5\-60.
+.TP
+.BR glitch " (1)"
+0 turns off the glitch tears and glyph jitter.
+.PP
+The colors file takes
+.BR nord0 " to " nord15 ,
+each as
+.IR #rrggbb .
+On terminals that allow it (foot, kitty, ghostty) dew shows the exact
+colors and restores the terminal's palette when it quits;
+elsewhere it uses the nearest of the 256 standard colors.
+.SH ENVIRONMENT
+.TP
+.BR VISUAL ", " EDITOR
+The note editor.
+.TP
+.BR XDG_DATA_HOME ", " XDG_CONFIG_HOME
+Where dew keeps its files.
+.SH EXIT STATUS
+0 on success, 1 when dew cannot start (another dew is running, or
+.I tasks.md
+has an error), 2 for a usage error.
+.SH EXAMPLES
+.TP
+.B dew add \-t fix the grub theme
+Add a task to Today from the shell.
+.TP
+.B dew \-\-file ~/work/tasks.md
+Use a different list.
+.SH SEE ALSO
+.BR notify\-send (1)
