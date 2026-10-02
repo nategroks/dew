@@ -7,7 +7,8 @@ A terminal to-do list you knock out with a pomodoro timer. A pomodoro is a
 board in Nord colors that reacts to your work: starting a wave seeds it,
 checking off a task launches a fleet of gliders, finishing a wave sets off a
 burst and plants a pattern in today's garden, and breaks flood the board with
-a river (a white wolf runs along its bank) into Brian's Brain fireworks.
+a river (a white pixel-art wolf gallops along its bank, drawn in real pixels
+in kitty, ghostty and foot) into Brian's Brain fireworks.
 Press `r` to give your waves a different automaton: HighLife, Day & Night,
 Seeds, Maze, Star Wars, or any `B…/S…` rule.
 

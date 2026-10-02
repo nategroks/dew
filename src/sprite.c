@@ -1,88 +1,57 @@
 #include "sprite.h"
 
-/* W snow, S frost shade, E eye, N claws/nose. Drawn after the wolves in the
-   rune pixel-art the user picked; the legs cycle stretch, gather, collect, push. */
-static const char *const WOLF[WOLF_FRAMES][WOLF_H] = {
-    {
-        ".......................W..W.....",
-        "......................WW.WW.....",
-        ".........SSSSS.......WWWWWW.....",
-        ".....SSSSSSSSSSSSSSSWWWWWEWW....",
-        "...WWWWWWWWWWWWWWWWWWWWWWWWWWWN.",
-        ".WWWWWWWWWWWWWWWWWWWWWWWWWW.....",
-        "WWWWWWWWWWWWWWWWWWWWWWWWWW......",
-        "WWW..WWWWWWWWWWWWWWWWWWWWW......",
-        "WW....WWWWWWWW.....WWWWWW.......",
-        ".....WWW............WWW.........",
-        "....WW.WW............WW.WW......",
-        "...WW...WW..........WW...WW.....",
-        "..WW.....WW........WW.....WW....",
-        "..N.......N........N.......N....",
-    },
-    {
-        ".......................W..W.....",
-        "......................WW.WW.....",
-        ".........SSSSS.......WWWWWW.....",
-        ".....SSSSSSSSSSSSSSSWWWWWEWW....",
-        "...WWWWWWWWWWWWWWWWWWWWWWWWWWWN.",
-        ".WWWWWWWWWWWWWWWWWWWWWWWWWW.....",
-        "WWWWWWWWWWWWWWWWWWWWWWWWWW......",
-        "WWW..WWWWWWWWWWWWWWWWWWWWW......",
-        "WW....WWWWWWWW.....WWWWWW.......",
-        "......WWW..........WWW..........",
-        "......WW.W.........WW.W.........",
-        ".....WW..WW.......WW..WW........",
-        ".....W....W.......W....W........",
-        ".....N....N.......N....N........",
-    },
-    {
-        ".......................W..W.....",
-        "......................WW.WW.....",
-        ".........SSSSS.......WWWWWW.....",
-        ".....SSSSSSSSSSSSSSSWWWWWEWW....",
-        "...WWWWWWWWWWWWWWWWWWWWWWWWWWWN.",
-        ".WWWWWWWWWWWWWWWWWWWWWWWWWW.....",
-        "WWWWWWWWWWWWWWWWWWWWWWWWWW......",
-        "WWW..WWWWWWWWWWWWWWWWWWWWW......",
-        "WW....WWWWWWWW.....WWWWWW.......",
-        "........WWW.....WWW.............",
-        "........WWWW...WWWW.............",
-        ".........WWW...WWW..............",
-        ".........WW....WW...............",
-        ".........NN....NN...............",
-    },
-    {
-        ".......................W..W.....",
-        "......................WW.WW.....",
-        ".........SSSSS.......WWWWWW.....",
-        ".....SSSSSSSSSSSSSSSWWWWWEWW....",
-        "...WWWWWWWWWWWWWWWWWWWWWWWWWWWN.",
-        ".WWWWWWWWWWWWWWWWWWWWWWWWWW.....",
-        "WWWWWWWWWWWWWWWWWWWWWWWWWW......",
-        "WWW..WWWWWWWWWWWWWWWWWWWWW......",
-        "WW....WWWWWWWW.....WWWWWW.......",
-        "......WWW..........WWWW.........",
-        ".....WW.WW..........WW.WW.......",
-        "....WW...WW........WW...WW......",
-        "...WW.....W.......WW.....WW.....",
-        "...N......N.......N.......N.....",
-    },
-};
+#include <string.h>
+
+static int wrap(int frame)
+{
+    frame %= WOLF_FRAMES;
+    return frame < 0 ? frame + WOLF_FRAMES : frame;
+}
 
 int wolf_pixel(int frame, int x, int y)
 {
     if (x < 0 || y < 0 || x >= WOLF_W || y >= WOLF_H)
         return PX_NONE;
-    frame %= WOLF_FRAMES;
-    if (frame < 0)
-        frame += WOLF_FRAMES;
-    switch (WOLF[frame][y][x]) {
-    case 'W': return PX_SNOW;
-    case 'S': return PX_SHADE;
-    case 'E': return PX_EYE;
-    case 'N': return PX_DARK;
-    default: return PX_NONE;
+    switch (WOLF_ART[wrap(frame)][y * WOLF_ART_H / WOLF_H][x * WOLF_ART_W / WOLF_W] - '0') {
+    case ART_SNOW:
+    case ART_FROST:
+        return PX_SNOW;
+    case ART_SHADE:
+    case ART_DEEP:
+    case ART_EAR:
+        return PX_SHADE;
+    case ART_EYE:
+        return PX_EYE;
+    case ART_DARK:
+        return PX_DARK;
+    default:
+        return PX_NONE;
     }
+}
+
+int wolf_canvas(int frame, int w, int h, uint8_t *rgba)
+{
+    memset(rgba, 0, (size_t)w * (size_t)h * 4);
+    int s = w / WOLF_ART_W < h / WOLF_ART_H ? w / WOLF_ART_W : h / WOLF_ART_H;
+    if (s < 1)
+        s = 1;
+    int left = (w - WOLF_ART_W * s) / 2, top = h - WOLF_ART_H * s;
+    const char *const *art = WOLF_ART[wrap(frame)];
+    for (int y = top < 0 ? 0 : top; y < h; y++) {
+        int ay = (y - top) / s;
+        for (int x = left < 0 ? 0 : left; x < w && (x - left) / s < WOLF_ART_W; x++) {
+            char k = art[ay][(x - left) / s];
+            if (k == '.')
+                continue;
+            uint32_t c = WOLF_ART_RGB[k - '0'];
+            uint8_t *p = rgba + 4 * ((size_t)y * (size_t)w + (size_t)x);
+            p[0] = (uint8_t)(c >> 16);
+            p[1] = (uint8_t)(c >> 8);
+            p[2] = (uint8_t)c;
+            p[3] = 255;
+        }
+    }
+    return s;
 }
 
 uint32_t rune(int i)

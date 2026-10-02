@@ -208,6 +208,22 @@ Animation frames per second, 5\-60.
 .BR glitch " (1)"
 0 turns off the glitch tears and rune jitter.
 .TP
+.BR wolf_graphics " (auto)"
+How the break wolf is drawn:
+.B kitty
+(real pixels through kitty's graphics protocol; kitty, ghostty),
+.B sixel
+(real pixels; foot),
+.B braille
+(dots, any terminal), or
+.B auto
+to choose from
+.BR TERM ,
+.B TERM_PROGRAM
+and
+.BR KITTY_WINDOW_ID .
+Inside tmux, auto uses braille.
+.TP
 .BR focus_rule " (conway)"
 The simulation focus waves run: a preset
 .RB ( conway ", " highlife ", " daynight ", " seeds ", " lifewithoutdeath ,

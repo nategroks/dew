@@ -334,3 +334,12 @@ state and restore the terminal.
   floods in from the left with a white pixel wolf (32×14 dots, 4-frame run cycle,
   red eye) galloping along its bank, then fades into Brian's Brain; breaks end the
   same way back to the garden. The wolf skips its run on panes too small for it.
+- **Real-pixel wolf.** The wolf's six run-cycle frames are cut from the pixel-art
+  sheet by `tools/wolfsheet.py` into `src/wolfart.c` (41×24 art pixels, an 8-color
+  Nord palette). kitty and ghostty get the kitty graphics protocol (frames uploaded
+  once, one placement moved each frame, z above text, deleted at exit); foot gets
+  sixel (redrawn each frame, the rows it left rewritten by curses). Frames are scaled
+  by a whole number to fit 24×7 cells and wrapped in synchronized updates.
+  `wolf_graphics = auto|kitty|sixel|braille`; auto reads only the environment and
+  picks braille inside tmux. Braille samples the same art. `tests/wolf-graphics.sh`
+  checks the escape output through a pixel-reporting pty.

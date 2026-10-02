@@ -1,6 +1,7 @@
 #include "app.h"
 #include "braille.h"
 #include "sprite.h"
+#include "wolfview.h"
 #include "util.h"
 
 #include <curses.h>
@@ -318,7 +319,14 @@ static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director
         }
         /* the wolf runs along the bank, drawn over everything */
         int wx, wy, wf;
-        if (director_wolf(d, &wx, &wy, &wf))
+        bool wolf = director_wolf(d, &wx, &wy, &wf);
+        if (wolf && wolfview_active(a)) { /* real pixels, drawn after the refresh */
+            a->wolf.show = true;
+            a->wolf.frame = wf;
+            a->wolf.x_px = in.x * a->cell_w + wx * a->cell_w / 2;
+            a->wolf.row = in.y + wy / 4;
+            a->wolf.pane = in;
+        } else if (wolf)
             for (int y = 0; y < WOLF_H; y++)
                 for (int x = 0; x < WOLF_W; x++) {
                     int px = wolf_pixel(wf, x, y), bx = wx + x, by = wy + y;
@@ -577,6 +585,7 @@ void render(App *a)
     setcchar(&blank, L" ", A_NORMAL, pair_of(p->ui[UI_TEXT], p->bg), NULL);
     wbkgrndset(stdscr, &blank);
     erase();
+    a->wolf.show = false;
     curs_set(0);
 
     if (a->lay.too_small) {
@@ -597,5 +606,9 @@ void render(App *a)
             move(a->cur_y, a->cur_x);
         }
     }
+    if (a->help || a->prompt != PROMPT_NONE)
+        a->wolf.show = false; /* the image would cover them */
+    wolfview_before(a);
     refresh();
+    wolfview_after(a);
 }

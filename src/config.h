@@ -1,6 +1,7 @@
 #ifndef DEW_CONFIG_H
 #define DEW_CONFIG_H
 
+#include "gfx.h"
 #include "rules.h"
 #include "util.h"
 
@@ -15,6 +16,7 @@ typedef struct {
     bool bell, notify, glitch;
     int fps;
     Rule focus_rule;   /* the automaton focus waves run */
+    GfxMode wolf_graphics; /* how the break wolf is drawn */
     uint32_t nord[16]; /* 0xRRGGBB, nord0..nord15 */
 } Config;
 

@@ -13,6 +13,7 @@ static void test_defaults(void)
     CHECK_INT(c.long_every, 4);
     CHECK_INT(c.sprite, SPRITE_RUNE);
     CHECK_STR(sprite_text(SPRITE_RUNE), "ᛚ");
+    CHECK_INT(c.wolf_graphics, GFX_AUTO);
     CHECK(c.bell && c.notify && c.glitch);
     CHECK_INT(c.fps, 20);
     CHECK_INT(c.nord[0], 0x2e3440);
@@ -34,6 +35,24 @@ static void test_focus_rule(void)
     CHECK_INT(config_parse(&c, "focus_rule = B9/S1\n", &w), 1);
     CHECK_STR(rule_name(c.focus_rule), "custom"); /* unchanged */
     CHECK(strstr(w.buf, "line 1: focus_rule") != NULL);
+    sb_free(&w);
+}
+
+static void test_wolf_graphics(void)
+{
+    Config c;
+    config_defaults(&c);
+    Sbuf w;
+    sb_init(&w);
+    CHECK_INT(config_parse(&c, "wolf_graphics = sixel\n", &w), 0);
+    CHECK_INT(c.wolf_graphics, GFX_SIXEL);
+    CHECK_INT(config_parse(&c, "wolf_graphics = kitty\nwolf_graphics = braille\n", &w), 0);
+    CHECK_INT(c.wolf_graphics, GFX_BRAILLE);
+    CHECK_INT(config_parse(&c, "wolf_graphics = auto\n", &w), 0);
+    CHECK_INT(c.wolf_graphics, GFX_AUTO);
+    CHECK_INT(config_parse(&c, "wolf_graphics = png\n", &w), 1);
+    CHECK_INT(c.wolf_graphics, GFX_AUTO);
+    CHECK(strstr(w.buf, "line 1: wolf_graphics must be auto, kitty, sixel or braille") != NULL);
     sb_free(&w);
 }
 
@@ -118,6 +137,7 @@ void suite_config(void)
     test_defaults();
     test_parse();
     test_focus_rule();
+    test_wolf_graphics();
     test_bad_values();
     test_colors();
 }

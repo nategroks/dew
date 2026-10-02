@@ -17,6 +17,7 @@ void config_defaults(Config *c)
     c->long_min = 15;
     c->long_every = 4;
     c->sprite = SPRITE_RUNE;
+    c->wolf_graphics = GFX_AUTO;
     c->bell = true;
     c->notify = true;
     c->glitch = true;
@@ -165,6 +166,17 @@ static int config_line(Config *c, const char *key, const char *val, size_t linen
             return 1;
         }
         return 0;
+    }
+    if (strcmp(key, "wolf_graphics") == 0) {
+        static const char *const NAMES[] = {"auto", "braille", "kitty", "sixel"};
+        for (int i = 0; i < 4; i++)
+            if (strcmp(val, NAMES[i]) == 0) {
+                c->wolf_graphics = (GfxMode)i;
+                return 0;
+            }
+        sb_printf(warn, "config: line %zu: wolf_graphics must be auto, kitty, sixel or braille\n",
+                  lineno);
+        return 1;
     }
     sb_printf(warn, "config: line %zu: unknown key \"%s\"\n", lineno, key);
     return 1;

@@ -1,4 +1,5 @@
 #include "app.h"
+#include "wolfview.h"
 
 #include "nudge.h"
 #include "util.h"
@@ -315,6 +316,7 @@ static char *run_editor(App *a, const char *text)
         ed = "vi";
     setenv("DEW_EDITOR", ed, 1); /* word-split by sh, so "emacsclient -t" works */
 
+    wolfview_hide(a);
     def_prog_mode();
     endwin();
     char *argv[] = {"sh", "-c", "exec $DEW_EDITOR \"$1\"", "sh", path, NULL};
@@ -574,6 +576,7 @@ static void close_garden_view(App *a)
 static void relayout(App *a)
 {
     getmaxyx(stdscr, a->rows, a->cols);
+    wolfview_measure(a);
     a->lay = layout_compute(a->cols, a->rows);
     int w = 0, h = 0;
     if (a->lay.show_life) {
@@ -821,6 +824,7 @@ int app_main(const char *tasks_override)
     set_escdelay(25);
     curs_set(0);
     render_init_colors();
+    wolfview_init(a);
     relayout(a);
     restore_wave(a);
 
@@ -860,6 +864,7 @@ int app_main(const char *tasks_override)
     }
 
     save_state(a);
+    wolfview_free(a);
     endwin();
     render_restore_colors();
     teardown(a);
