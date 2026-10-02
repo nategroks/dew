@@ -5,6 +5,7 @@ int t_run, t_fail;
 void suite_util(void);
 void suite_tasks(void);
 void suite_taskfile(void);
+void suite_config(void);
 
 static const struct {
     const char *name;
@@ -13,6 +14,7 @@ static const struct {
     {"util", suite_util},
     {"tasks", suite_tasks},
     {"taskfile", suite_taskfile},
+    {"config", suite_config},
 };
 
 int main(int argc, char **argv)
