@@ -4,6 +4,7 @@ int t_run, t_fail;
 
 void suite_util(void);
 void suite_tasks(void);
+void suite_taskfile(void);
 
 static const struct {
     const char *name;
@@ -11,6 +12,7 @@ static const struct {
 } SUITES[] = {
     {"util", suite_util},
     {"tasks", suite_tasks},
+    {"taskfile", suite_taskfile},
 };
 
 int main(int argc, char **argv)
