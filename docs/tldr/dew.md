@@ -24,9 +24,13 @@
 
 `<Space>`
 
-- Inside dew, check off the selected task:
+- Inside dew, check off the selected task (a wolf runs across the board):
 
 `x`
+
+- Inside dew, switch the wave length between 15, 25 and 45 minutes (breaks follow):
+
+`m`
 
 - Inside dew, see today's garden:
 

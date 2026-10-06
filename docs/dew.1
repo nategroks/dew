@@ -1,4 +1,4 @@
-.TH DEW 1 2026-10-02 "dew 0.1.0" "User Commands"
+.TH DEW 1 2026-10-06 "dew 0.1.0" "User Commands"
 .SH NAME
 dew \- terminal to-do list with waves and a Game of Life garden
 .SH SYNOPSIS
@@ -27,11 +27,16 @@ and the
 Start a wave on a task, work until the timer ends, take a break, repeat.
 .PP
 The right-hand pane runs a Game of Life board that reacts to what you do.
-Starting a wave seeds it, checking off a task launches a fleet of gliders,
+Starting a wave seeds it with soft-colored patches, checking off a task
+launches a fleet of gliders and sends a wolf running across the board,
 finishing a wave sets off a burst and plants a pattern in today's
 .IR garden ,
 and a break floods the board with a river (a white wolf runs along its bank)
 that gives way to Brian's Brain fireworks.
+Each task you finish gets the next of five wolves: frost, ember, aurora,
+shadow and dusk, at a gallop or a trot.
+When several tasks are done at once they run one after another, and the
+river waits for a wolf that is still out.
 Pausing turns the colony gray and lets it die off.
 Garden plants wear Nord gradients that shift as they blink and breathe.
 .PP
@@ -41,6 +46,7 @@ simulation: set
 or press
 .BR r .
 Breaks always run Brian's Brain and the garden always runs Conway.
+The lower right corner of the pane always shows the simulation waves run.
 .PP
 The pane is hidden when the terminal is smaller than 80\(mu24.
 .SH KEYS
@@ -89,6 +95,18 @@ Finish the wave now (it counts), or end the break.
 .B S
 Abandon the wave. It does not count and plants nothing.
 .TP
+.B m
+Switch the wave length: 15, 25 or 45 minutes (plus
+.B focus
+from the config if it is another).
+Breaks are worked out from it; see
+.BR WAVES .
+During a wave, the wave itself gets the new length and keeps the time
+already done; lengths it has already run past are skipped.
+The choice is remembered until the config's
+.B focus
+changes.
+.TP
 .B r
 Switch the simulation that waves run to the next one: conway, highlife,
 day & night, seeds, life without death, maze, 2x2, morley, brian's brain,
@@ -118,6 +136,11 @@ work as usual.
 .SH WAVES
 A wave is 25 minutes of focus followed by a 5-minute break, or a
 15-minute break after every 4th wave.
+Press
+.B m
+for 15- or 45-minute waves; the breaks keep the config's proportions,
+so with the defaults a 15-minute wave has 3- and 9-minute breaks and a
+45-minute wave 9- and 27-minute ones (whole minutes, at least one).
 The break ends by itself; dew never starts the next wave for you.
 At the end of each focus and break dew rings the terminal bell and,
 if
@@ -176,12 +199,19 @@ lines; # starts a comment.
 .TP 14
 .BR focus " (25)"
 Focus minutes, 1\-180.
+The wave length dew starts with;
+.B m
+switches between this, 15, 25 and 45.
 .TP
 .BR short_break " (5)"
-Break minutes, 1\-60.
+Break minutes after a
+.B focus
+length wave, 1\-60; other lengths scale it.
 .TP
 .BR long_break " (15)"
-Long break minutes, 1\-120.
+Long break minutes after a
+.B focus
+length wave, 1\-120; other lengths scale it.
 .TP
 .BR long_every " (4)"
 A long break after this many waves, 1\-12.
@@ -209,7 +239,7 @@ Animation frames per second, 5\-60.
 0 turns off the glitch tears and rune jitter.
 .TP
 .BR wolf_graphics " (auto)"
-How the break wolf is drawn:
+How the wolves are drawn:
 .B kitty
 (real pixels through kitty's graphics protocol; kitty, ghostty),
 .B sixel
