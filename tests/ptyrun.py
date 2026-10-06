@@ -1,7 +1,9 @@
 # Run dew in a pty that reports pixel sizes; script keys; save everything it writes.
+#   ptyrun.py TERM OUT [CONFIG-LINES [SCRIPT]]   SCRIPT: break (a wave, its break; default) or task
 import os, pty, sys, time, fcntl, termios, struct, select, tempfile, shutil
 term, out = sys.argv[1], sys.argv[2]
 extra = sys.argv[3] if len(sys.argv) > 3 else ''
+script = sys.argv[4] if len(sys.argv) > 4 else 'break'
 cols, rows, cw, ch = 110, 34, 10, 20
 T = tempfile.mkdtemp()
 os.makedirs(T + '/cfg/dew'); open(T + '/cfg/dew/config', 'w').write('notify = 0\nbell = 0\n' + extra)
@@ -22,7 +24,11 @@ def pump(sec):
         if r:
             try: buf.extend(os.read(fd, 65536))
             except OSError: return
-for key, wait in [(b'', 1.0), (b' ', 1.5), (b's', 6.0), (b'?', 0.6), (b'?', 0.6), (b'q', 1.0)]:
+KEYS = {
+    'break': [(b'', 1.0), (b' ', 1.5), (b's', 6.0), (b'?', 0.6), (b'?', 0.6), (b'q', 1.0)],
+    'task': [(b'', 1.0), (b'x', 4.0), (b'q', 1.0)],  # check off "one": a task wolf runs
+}
+for key, wait in KEYS[script]:
     if key: os.write(fd, key)
     pump(wait)
 os.waitpid(pid, 0)

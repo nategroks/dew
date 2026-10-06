@@ -4,6 +4,7 @@
 #include "layout.h"
 #include "lineedit.h"
 #include "palette.h"
+#include "sprite.h"
 #include "test.h"
 
 #include <stdlib.h>
@@ -14,12 +15,37 @@ static void test_palette(void)
     config_defaults(&c);
     PaletteRGB p;
     palette_compute(&p, c.nord);
+    const uint32_t *n = c.nord;
     CHECK_INT(p.life[0][0], 0xeceff4); /* newborn: snow */
-    CHECK_INT(p.life[0][2], 0xebcb8b); /* age 2: yellow */
-    CHECK_INT(p.life[0][PAL_AGES - 1], 0x434c5e); /* old: dim */
-    CHECK_INT(p.life[1][0], 0xbf616a); /* fleet tints: the five aurora colors... */
-    CHECK_INT(p.life[4][0], 0xa3be8c);
-    CHECK_INT(p.life[9][0], 0x5e81ac); /* ...then the four frost colors */
+    CHECK_INT(p.life[0][1], rgb_mix(n[13], n[6], 0.2)); /* then soft pastels: yellow, */
+    CHECK_INT(p.life[0][2], rgb_mix(n[14], n[6], 0.2)); /* green, */
+    CHECK_INT(p.life[0][3], n[7]);                      /* the frosts, */
+    CHECK_INT(p.life[0][6], rgb_mix(n[15], n[6], 0.2)); /* mauve */
+    CHECK_INT(p.life[0][PAL_AGES - 1], rgb_mix(n[15], n[2], 0.55)); /* old: dusk */
+    for (int b = 0; b < PAL_AGES; b++)
+        for (int k = 0; k < b; k++)
+            CHECK(p.life[0][b] != p.life[0][k]); /* every age its own color */
+    CHECK_INT(p.life[1][0], rgb_mix(n[11], n[6], 0.3)); /* fleets: pastel when newborn, */
+    CHECK_INT(p.life[1][4], 0xbf616a); /* the five aurora colors... */
+    CHECK_INT(p.life[4][4], 0xa3be8c);
+    CHECK_INT(p.life[9][4], 0x5e81ac); /* ...then the four frost colors */
+    for (int t = 1; t < LIFE_TINTS; t++)
+        for (int b = 2; b < PAL_AGES; b += 2)
+            CHECK(p.life[t][b] != p.life[t][b - 2]);
+    /* list stripes: between the background and the selection, unlike either */
+    CHECK(p.stripe != p.bg && p.stripe != p.sel_bg && p.stripe != p.band);
+    CHECK(((p.stripe >> 16) & 0xff) > ((p.bg >> 16) & 0xff));
+    CHECK(((p.stripe >> 16) & 0xff) < ((p.sel_bg >> 16) & 0xff));
+    /* braille wolves: the snow wolf as before, the others in their coats */
+    for (int z = 0; z < WOLF_ZONES; z++) {
+        CHECK_INT(p.wolf[WOLF_SNOW][z][PX_SNOW - 1], 0xeceff4);
+        CHECK_INT(p.wolf[WOLF_SNOW][z][PX_SHADE - 1], 0xd8dee9);
+        CHECK_INT(p.wolf[WOLF_SNOW][z][PX_EYE - 1], 0xbf616a);
+        CHECK_INT(p.wolf[WOLF_SNOW][z][PX_DARK - 1], 0x4c566a);
+    }
+    for (int k = 1; k < WOLF_KINDS; k++)
+        CHECK(p.wolf[k][1][PX_SNOW - 1] != p.wolf[WOLF_SNOW][1][PX_SNOW - 1]);
+    CHECK(p.wolf[WOLF_AURORA][0][PX_SNOW - 1] != p.wolf[WOLF_AURORA][2][PX_SNOW - 1]);
     CHECK_INT(p.garden[0][0], 0xd08770); /* garden pair 0: orange -> purple */
     CHECK_INT(p.garden[0][7], 0xb48ead);
     for (int g = 0; g < GARDEN_PAIRS; g++)

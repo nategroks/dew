@@ -17,6 +17,13 @@
 typedef enum { MOOD_IDLE, MOOD_FOCUS, MOOD_PAUSED, MOOD_BREAK } Mood;
 typedef enum { THEN_BRAIN, THEN_GARDEN } SweepThen;
 
+#define RUN_QUEUE 4 /* task wolves waiting for their turn */
+
+/* A wolf on the board: top-left in board cells, run-cycle frame, coat (WOLF_SNOW ...). */
+typedef struct {
+    int x, y, frame, kind;
+} WolfSpot;
+
 typedef struct {
     Life life;
     Rng rng;
@@ -33,6 +40,16 @@ typedef struct {
     int river_fade;    /* frames left of the river fading out, after it has crossed */
     SweepThen then;
     uint8_t tint_cursor;
+    struct {
+        bool on;
+        double x;   /* left edge, board cells; starts off the left side */
+        double y01; /* height: 0 top .. 1 bottom, so it survives a resize */
+        int kind;
+        long start; /* the frame it set off */
+    } run;          /* a task wolf crossing the board */
+    uint8_t run_queue[RUN_QUEUE];
+    int run_queued;
+    int wolf_next;  /* rotates the task wolves' coats */
     Rule focus_rule; /* what focus waves run; Conway unless the user picks another */
     GardenBox *boxes; /* where the garden's plants sit on the board, for coloring */
     size_t nboxes;
@@ -58,8 +75,9 @@ bool director_animating(const Director *d); /* false when only the slow idle ste
 /* While sweeping: the river's centerline at column x and its half width, in board cells. */
 double director_river_y(const Director *d, int x);
 int director_river_half(const Director *d);
-/* While the river crosses: where the wolf is (top-left, board cells) and its run-cycle frame.
-   False when it isn't on screen or the board is too small for it. */
-bool director_wolf(const Director *d, int *x, int *y, int *frame);
+/* The wolf on the board: the snow wolf while the river crosses, else a task wolf (one runs
+   across for each task done, in turn, never during the river). False when none is on screen
+   or the board is too small for one. */
+bool director_wolf(const Director *d, WolfSpot *w);
 
 #endif

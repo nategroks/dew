@@ -5,13 +5,14 @@
 #include <stdint.h>
 
 #define WOLF_ART_W 41
-#define WOLF_ART_H 24
+#define WOLF_ART_H 25
+#define WOLF_ART_CYCLES 2 /* 0 gallop, 1 trot */
 #define WOLF_ART_FRAMES 6
 #define WOLF_ART_COLORS 8
 
 enum { ART_NONE, ART_SNOW, ART_FROST, ART_SHADE, ART_DEEP, ART_DARK, ART_EYE, ART_EAR };
 
 extern const uint32_t WOLF_ART_RGB[WOLF_ART_COLORS];
-extern const char *const WOLF_ART[WOLF_ART_FRAMES][WOLF_ART_H];
+extern const char *const WOLF_ART[WOLF_ART_CYCLES][WOLF_ART_FRAMES][WOLF_ART_H];
 
 #endif

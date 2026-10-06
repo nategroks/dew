@@ -236,7 +236,8 @@ static void draw_list(App *a)
         size_t vi = line < nt ? line : line - 1;
         Task *t = doc_view_at(&a->doc, vi, NULL);
         bool sel = vi == a->sel, active = running && t->id == a->active_id;
-        uint32_t bg = sel ? p->sel_bg : p->bg;
+        bool striped = (vi < nt ? vi : vi - nt) % 2 == 1; /* each list starts dark */
+        uint32_t bg = sel ? p->sel_bg : striped ? p->stripe : p->bg;
         uint32_t fg = t->done ? p->ui[UI_DIM]
                     : active  ? p->ui[UI_ACTIVE]
                     : sel     ? p->ui[UI_SEL]
@@ -285,7 +286,7 @@ static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director
     int cols = in.w, rows = in.h;
     size_t ncells = (size_t)(cols * rows);
     uint8_t *obits = xcalloc(ncells, 1), *wbits = xcalloc(ncells, 1), *webits = xcalloc(ncells, 1);
-    uint8_t *wrank = xcalloc(ncells, 1);
+    uint8_t *wrank = xcalloc(ncells, 1), *wzone = xcalloc(ncells, 1);
     uint32_t *ocolor = xcalloc(ncells, sizeof *ocolor);
 
     if (d && d->sweeping) {
@@ -317,19 +318,24 @@ static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director
                 ocolor[ci] = c;
             }
         }
-        /* the wolf runs along the bank, drawn over everything */
-        int wx, wy, wf;
-        bool wolf = director_wolf(d, &wx, &wy, &wf);
-        if (wolf && wolfview_active(a)) { /* real pixels, drawn after the refresh */
+    }
+
+    /* a wolf runs across, drawn over everything: the river's, or one for a task done */
+    WolfSpot ws;
+    int wkind = WOLF_SNOW;
+    if (d && director_wolf(d, &ws)) {
+        wkind = ws.kind;
+        if (wolfview_active(a)) { /* real pixels, drawn after the refresh */
             a->wolf.show = true;
-            a->wolf.frame = wf;
-            a->wolf.x_px = in.x * a->cell_w + wx * a->cell_w / 2;
-            a->wolf.row = in.y + wy / 4;
+            a->wolf.frame = ws.frame;
+            a->wolf.kind = ws.kind;
+            a->wolf.x_px = in.x * a->cell_w + ws.x * a->cell_w / 2;
+            a->wolf.row = in.y + ws.y / 4;
             a->wolf.pane = in;
-        } else if (wolf)
+        } else
             for (int y = 0; y < WOLF_H; y++)
                 for (int x = 0; x < WOLF_W; x++) {
-                    int px = wolf_pixel(wf, x, y), bx = wx + x, by = wy + y;
+                    int px = wolf_pixel(ws.kind, ws.frame, x, y), bx = ws.x + x, by = ws.y + y;
                     if (px == PX_NONE || bx < 0 || by < 0 || bx >= l->w || by >= l->h ||
                         bx / 2 >= cols || by / 4 >= rows)
                         continue;
@@ -338,6 +344,7 @@ static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director
                     if (px == PX_EYE)
                         webits[ci] |= bit;
                     wbits[ci] |= bit;
+                    wzone[ci] = (uint8_t)(x * WOLF_ZONES / WOLF_W);
                     int rank = px == PX_SNOW ? 3 : px == PX_SHADE ? 2 : 1;
                     if (rank > wrank[ci])
                         wrank[ci] = (uint8_t)rank;
@@ -364,12 +371,13 @@ static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director
                                                           : p->life[bc.tint][b];
                 }
                 int ci = cy * cols + sx;
-                if (webits[ci]) { /* the eye cell shows just the eye, in red */
+                const uint32_t *coat = p->wolf[wkind][wzone[ci]];
+                if (webits[ci]) { /* the eye cell shows just the eye */
                     bits = webits[ci];
-                    fg = p->wolf[PX_EYE - 1];
+                    fg = coat[PX_EYE - 1];
                 } else if (wbits[ci]) {
                     bits = wbits[ci];
-                    fg = p->wolf[wrank[ci] == 3 ? PX_SNOW - 1 : wrank[ci] == 2 ? PX_SHADE - 1 : PX_DARK - 1];
+                    fg = coat[wrank[ci] == 3 ? PX_SNOW - 1 : wrank[ci] == 2 ? PX_SHADE - 1 : PX_DARK - 1];
                 } else if (obits[ci]) {
                     bits |= obits[ci];
                     fg = ocolor[ci];
@@ -400,6 +408,7 @@ static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director
     free(wbits);
     free(webits);
     free(wrank);
+    free(wzone);
     free(ocolor);
 }
 
@@ -410,16 +419,19 @@ static void status_text(App *a, char *out, size_t n)
     int mm = sec / 60, ss = sec % 60;
     switch (a->wave.mode) {
     case WAVE_FOCUS:
-        snprintf(out, n, "%s %02d:%02d focus · wave %d", s, mm, ss, a->wave.waves_today + 1);
+        snprintf(out, n, "%s %02d:%02d focus · %d min · wave %d", s, mm, ss, a->length_min,
+                 a->wave.waves_today + 1);
         break;
     case WAVE_PAUSED:
-        snprintf(out, n, "❚❚ %02d:%02d paused · wave %d", mm, ss, a->wave.waves_today + 1);
+        snprintf(out, n, "❚❚ %02d:%02d paused · %d min · wave %d", mm, ss, a->length_min,
+                 a->wave.waves_today + 1);
         break;
     case WAVE_BREAK:
         snprintf(out, n, "%s %02d:%02d %s", s, mm, ss, a->wave.long_break ? "long break" : "break");
         break;
     default:
-        snprintf(out, n, "garden · %d %s today", a->wave.waves_today, s);
+        snprintf(out, n, "garden · %d %s today · %d min waves", a->wave.waves_today, s,
+                 a->length_min);
     }
 }
 
@@ -435,7 +447,7 @@ static void draw_life(App *a)
     Rect r = a->lay.life;
     char status[96], label[64];
     status_text(a, status, sizeof status);
-    rule_label(a->dir.life.rule, label, sizeof label);
+    rule_label(a->dir.focus_rule, label, sizeof label); /* the pick, even while idle or on a break */
     draw_box(a, r, NULL, status, label);
     bool garden = a->dir.mood == MOOD_IDLE && !a->dir.sweeping;
     draw_board(a, &a->dir.life, (Rect){r.x + 1, r.y + 1, r.w - 2, r.h - 2},
@@ -512,7 +524,8 @@ static void draw_keys(App *a)
     }
     static const char *HINTS[][2] = {
         {"a", "add"},  {"e", "edit"},   {"n", "note"}, {"x", "done"},   {"t", "today↔backlog"},
-        {"J/K", "move"}, {"␣", "wave"}, {"s", "stop"}, {"r", "rule"}, {"w", "garden"}, {"?", "help"}, {"q", "quit"},
+        {"J/K", "move"}, {"␣", "wave"}, {"m", "length"}, {"s", "stop"}, {"r", "rule"}, {"w", "garden"},
+        {"?", "help"}, {"q", "quit"},
     };
     int x = 0;
     for (size_t i = 0; i < sizeof HINTS / sizeof *HINTS; i++) {
@@ -542,6 +555,7 @@ static void draw_help(App *a)
         {"Space", "start, pause or resume a wave"},
         {"s", "finish the wave now, or end the break"},
         {"S", "abandon the wave (not counted)"},
+        {"m", "wave length: 15, 25 or 45 min"},
         {"r", "next simulation for waves"},
         {"w", "today's garden"},
         {"q", "quit (a running wave resumes next time)"},

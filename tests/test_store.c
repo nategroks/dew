@@ -211,7 +211,9 @@ static void test_state(void)
                     .long_break = true,
                     .task = "fix grub = theme",
                     .rule = "B3678/S34678",
-                    .base = "B3/S23"};
+                    .base = "B3/S23",
+                    .length = 45,
+                    .length_base = 25};
     CHECK(state_save(f, &a));
     CHECK(state_load(f, &s));
     CHECK_STR(s.date, "2026-10-02");
@@ -222,6 +224,13 @@ static void test_state(void)
     CHECK_STR(s.task, "fix grub = theme");
     CHECK_STR(s.rule, "B3678/S34678");
     CHECK_STR(s.base, "B3/S23");
+    CHECK_INT(s.length, 45);
+    CHECK_INT(s.length_base, 25);
+    state_clear(&s);
+    put(f, "date=2026-10-02\nmode=idle\n"); /* from before wave lengths: 0 = not set */
+    CHECK(state_load(f, &s));
+    CHECK_INT(s.length, 0);
+    CHECK_INT(s.length_base, 0);
     state_clear(&s);
     put(f, "garbage\n");
     CHECK(!state_load(f, &s));

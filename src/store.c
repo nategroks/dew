@@ -305,9 +305,11 @@ bool state_save(const char *path, const SavedState *s)
 {
     Sbuf b;
     sb_init(&b);
-    sb_printf(&b, "date=%s\nmode=%s\nend=%lld\nremaining=%.0f\nlong=%d\nrule=%s\nbase=%s\ntask=%s\n",
+    sb_printf(&b,
+              "date=%s\nmode=%s\nend=%lld\nremaining=%.0f\nlong=%d\nrule=%s\nbase=%s\n"
+              "length=%d\nlbase=%d\ntask=%s\n",
               s->date, MODE_NAMES[s->mode], s->wall_end, s->remaining, s->long_break ? 1 : 0,
-              s->rule, s->base, s->task ? s->task : "");
+              s->rule, s->base, s->length, s->length_base, s->task ? s->task : "");
     bool ok = write_atomic(path, b.buf, b.len, false);
     sb_free(&b);
     return ok;
@@ -343,6 +345,10 @@ bool state_load(const char *path, SavedState *s)
             snprintf(s->rule, sizeof s->rule, "%.31s", v);
         else if (strcmp(k, "base") == 0)
             snprintf(s->base, sizeof s->base, "%.31s", v);
+        else if (strcmp(k, "length") == 0)
+            s->length = (int)strtol(v, NULL, 10);
+        else if (strcmp(k, "lbase") == 0)
+            s->length_base = (int)strtol(v, NULL, 10);
         else if (strcmp(k, "long") == 0)
             s->long_break = strcmp(v, "1") == 0;
         else if (strcmp(k, "task") == 0) {

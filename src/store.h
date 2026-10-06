@@ -64,6 +64,8 @@ typedef struct {
     char *task; /* the task the wave is on; heap string owned by the SavedState */
     char rule[32]; /* focus rule, e.g. "B3/S23"; "" if never set */
     char base[32]; /* the config's focus_rule when this was saved */
+    int length;      /* wave length picked with m, minutes; 0 if never set */
+    int length_base; /* the config's focus length when this was saved */
 } SavedState;
 
 bool state_save(const char *path, const SavedState *s);

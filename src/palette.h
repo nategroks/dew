@@ -3,6 +3,7 @@
 
 #include "garden.h"
 #include "life.h"
+#include "sprite.h"
 
 #include <stdint.h>
 
@@ -29,9 +30,11 @@ typedef struct {
     uint32_t garden[GARDEN_PAIRS][PAL_AGES]; /* plant gradients, 8 steps each */
     uint32_t dying;
     uint32_t bg, band, sel_bg;
+    uint32_t stripe; /* every other task row */
     uint32_t foam[4];
     uint32_t river[4]; /* deep, mid, light water, bank */
-    uint32_t wolf[4];  /* indexed by PX_SNOW-1 .. PX_DARK-1: snow, shade, eye, dark */
+    /* braille wolves: coat, tail/body/head, then PX_SNOW-1 .. PX_DARK-1 (snow, shade, eye, dark) */
+    uint32_t wolf[WOLF_KINDS][WOLF_ZONES][4];
     uint32_t glyph[5];
     uint32_t ui[UI_N];
 } PaletteRGB;

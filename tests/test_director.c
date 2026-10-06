@@ -67,6 +67,15 @@ static void test_wave_start_seeds_a_band(void)
             }
     CHECK(bottom - top < 20);
     CHECK(director_animating(&d));
+    /* seeded in patches of several soft colors, not one */
+    int seen[LIFE_TINTS] = {0}, colors = 0;
+    for (int y = 0; y < 48; y++)
+        for (int x = 0; x < 96; x++)
+            if (life_get(&d.life, x, y))
+                seen[life_tint(&d.life, x, y)] = 1;
+    for (int t = 0; t < LIFE_TINTS; t++)
+        colors += seen[t];
+    CHECK(colors >= 3);
     director_free(&d);
 }
 
@@ -145,12 +154,13 @@ static void test_river_and_wolf(void)
             double y = director_river_y(&d, x);
             CHECK(y >= half && y <= d.life.h - 1 - half);
         }
-        int wx, wy, wf;
-        if (director_wolf(&d, &wx, &wy, &wf)) {
-            CHECK(wx > last_x); /* always running forward */
-            CHECK(wy >= 0 && wy + WOLF_H <= d.life.h);
-            CHECK(wf >= 0 && wf < WOLF_FRAMES);
-            last_x = wx;
+        WolfSpot w;
+        if (director_wolf(&d, &w)) {
+            CHECK(w.x > last_x); /* always running forward */
+            CHECK(w.y >= 0 && w.y + WOLF_H <= d.life.h);
+            CHECK(w.frame >= 0 && w.frame < WOLF_FRAMES);
+            CHECK_INT(w.kind, WOLF_SNOW); /* the river's own wolf */
+            last_x = w.x;
             seen++;
         }
         director_frame(&d);
@@ -166,10 +176,104 @@ static void test_river_and_wolf(void)
     director_on_wave_finish(&d);
     guard = 0;
     while (guard++ < 300) {
-        int wx, wy, wf;
-        CHECK(!director_wolf(&d, &wx, &wy, &wf));
+        WolfSpot w;
+        CHECK(!director_wolf(&d, &w));
         director_frame(&d);
     }
+    director_free(&d);
+}
+
+/* Frames until a wolf of a kind other than `not` is on the board; -1 if none comes. */
+static int until_wolf(Director *d, int not, int limit, WolfSpot *w)
+{
+    for (int i = 0; i < limit; i++) {
+        if (director_wolf(d, w) && w->kind != not)
+            return i;
+        director_frame(d);
+    }
+    return -1;
+}
+
+static void test_task_wolves(void)
+{
+    Director d;
+    director_init(&d, 120, 64, 11, NULL);
+    director_on_task_done(&d);
+    CHECK(director_animating(&d));
+    WolfSpot w;
+    CHECK(until_wolf(&d, WOLF_SNOW, 60, &w) >= 0);
+    int first = w.kind, last_x = -1000, seen = 0;
+    CHECK(first != WOLF_SNOW); /* the snow wolf belongs to the river */
+    for (int guard = 0; guard < 400 && director_wolf(&d, &w); guard++) {
+        CHECK_INT(w.kind, first);
+        CHECK(w.x > last_x);
+        CHECK(w.y >= 0 && w.y + WOLF_H <= d.life.h);
+        CHECK(w.frame >= 0 && w.frame < WOLF_FRAMES);
+        last_x = w.x;
+        seen++;
+        director_frame(&d);
+    }
+    CHECK(seen > 20);
+    CHECK(last_x + WOLF_W > d.life.w - 4); /* it ran all the way across */
+    run(&d, 300);
+    CHECK(!director_wolf(&d, &w));
+    CHECK(!director_animating(&d)); /* back to the quiet garden */
+
+    /* three tasks in a row: a different wolf for each, one after another */
+    director_on_task_done(&d);
+    director_on_task_done(&d);
+    director_on_task_done(&d);
+    int kinds[3], n = 0, prev = -1;
+    for (int guard = 0; guard < 3000 && n < 3; guard++) {
+        int k = director_wolf(&d, &w) ? w.kind : -1;
+        if (k >= 0 && k != prev)
+            kinds[n++] = k;
+        prev = k;
+        director_frame(&d);
+    }
+    CHECK_INT(n, 3);
+    for (int i = 0; i < n; i++) {
+        CHECK(kinds[i] != WOLF_SNOW && kinds[i] != first);
+        for (int k = 0; k < i; k++)
+            CHECK(kinds[i] != kinds[k]);
+    }
+    director_free(&d);
+
+    /* no room on the board: no wolf, and nothing keeps animating */
+    director_init(&d, 50, 20, 13, NULL);
+    director_on_task_done(&d);
+    CHECK_INT(until_wolf(&d, -1, 400, &w), -1);
+    CHECK(!director_animating(&d));
+    director_free(&d);
+}
+
+static void test_river_waits_for_task_wolf(void)
+{
+    Director d;
+    director_init(&d, 120, 64, 12, NULL);
+    director_on_wave_start(&d);
+    director_on_task_done(&d);
+    WolfSpot w;
+    CHECK(until_wolf(&d, WOLF_SNOW, 60, &w) >= 0);
+    director_on_wave_finish(&d);
+    /* the river holds back until the task wolf is across */
+    int guard = 0;
+    while (director_wolf(&d, &w) && w.kind != WOLF_SNOW && guard++ < 500) {
+        CHECK(!d.sweeping);
+        director_frame(&d);
+    }
+    CHECK(until_wolf(&d, -1, 500, &w) >= 0);
+    CHECK_INT(w.kind, WOLF_SNOW);
+    CHECK(d.sweeping);
+    /* a task done while the river crosses sends its wolf after it */
+    director_on_task_done(&d);
+    for (guard = 0; d.sweeping && guard < 1000; guard++) {
+        if (director_wolf(&d, &w))
+            CHECK_INT(w.kind, WOLF_SNOW);
+        director_frame(&d);
+    }
+    CHECK(!d.sweeping);
+    CHECK(until_wolf(&d, WOLF_SNOW, 60, &w) >= 0);
     director_free(&d);
 }
 
@@ -283,6 +387,8 @@ void suite_director(void)
     test_fleet_color();
     test_finish_break_cycle();
     test_river_and_wolf();
+    test_task_wolves();
+    test_river_waits_for_task_wolf();
     test_pause_decays();
     test_abandon();
     test_tiny_and_resizing_boards();

@@ -8,7 +8,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-#define FIRST_ID 0x6477u /* kitty image ids for the frames: FIRST_ID + frame */
+#define FIRST_ID 0x6477u /* kitty image ids: FIRST_ID + kind * WOLF_FRAMES + frame */
 #define COLS_ (WOLF_W / 2)
 #define ROWS_ (WOLF_H / 4)
 
@@ -22,6 +22,11 @@ static void emit(Sbuf *b)
     }
     sb_free(b);
     sb_init(b);
+}
+
+static unsigned image_id(int kind, int frame)
+{
+    return FIRST_ID + (unsigned)(kind * WOLF_FRAMES + frame);
 }
 
 void wolfview_init(App *a)
@@ -70,18 +75,19 @@ void wolfview_before(App *a)
     }
 }
 
-static void upload(App *a, int pw, int ph, Sbuf *b)
+/* kitty keeps each coat's frames once it has been seen, until the cells change size */
+static void upload(App *a, int kind, int pw, int ph, Sbuf *b)
 {
     uint8_t *px = xmalloc((size_t)pw * (size_t)ph * 4);
     for (int f = 0; f < WOLF_FRAMES; f++) {
-        if (a->wolf_up_w)
-            kitty_free(b, FIRST_ID + (unsigned)f);
-        wolf_canvas(f, pw, ph, px);
-        kitty_upload(b, FIRST_ID + (unsigned)f, px, pw, ph);
+        if (a->wolf_up_w[kind])
+            kitty_free(b, image_id(kind, f));
+        wolf_canvas(a->cfg.nord, kind, f, pw, ph, px);
+        kitty_upload(b, image_id(kind, f), px, pw, ph);
     }
     free(px);
-    a->wolf_up_w = pw;
-    a->wolf_up_h = ph;
+    a->wolf_up_w[kind] = pw;
+    a->wolf_up_h[kind] = ph;
 }
 
 void wolfview_after(App *a)
@@ -93,8 +99,8 @@ void wolfview_after(App *a)
     sb_init(&b);
     int cw = a->cell_w, ch = a->cell_h, pw = COLS_ * cw, ph = ROWS_ * ch;
 
-    if (a->gfx == GFX_KITTY && a->wolf_prev.shown &&
-        (!a->wolf.show || a->wolf_prev.id != FIRST_ID + (unsigned)a->wolf.frame)) {
+    unsigned id = image_id(a->wolf.kind, a->wolf.frame);
+    if (a->gfx == GFX_KITTY && a->wolf_prev.shown && (!a->wolf.show || a->wolf_prev.id != id)) {
         kitty_unplace(&b, a->wolf_prev.id);
         a->wolf_prev.shown = false;
     }
@@ -107,14 +113,14 @@ void wolfview_after(App *a)
             x = (x >= 0 ? x / cw : -((-x + cw - 1) / cw)) * cw; /* sixels start on a cell */
         int x0 = x < left ? left : x, x1 = x + pw > right ? right : x + pw;
         if (x1 - x0 >= cw) {
-            unsigned id = FIRST_ID + (unsigned)a->wolf.frame;
+            int kind = a->wolf.kind;
             if (a->gfx == GFX_KITTY) {
-                if (a->wolf_up_w != pw || a->wolf_up_h != ph)
-                    upload(a, pw, ph, &b);
+                if (a->wolf_up_w[kind] != pw || a->wolf_up_h[kind] != ph)
+                    upload(a, kind, pw, ph, &b);
                 kitty_place(&b, id, a->wolf.row, x0 / cw, x0 % cw, x0 - x, x1 - x0, ph);
             } else {
                 uint8_t *px = xmalloc((size_t)pw * (size_t)ph * 4);
-                wolf_canvas(a->wolf.frame, pw, ph, px);
+                wolf_canvas(a->cfg.nord, kind, a->wolf.frame, pw, ph, px);
                 sb_printf(&b, "\0337\033[%d;%dH", a->wolf.row + 1, x0 / cw + 1);
                 sixel_encode(&b, px, pw, x0 - x, 0, x1 - x0, ph);
                 sb_puts(&b, "\0338");
@@ -146,13 +152,17 @@ void wolfview_hide(App *a)
 void wolfview_free(App *a)
 {
     wolfview_hide(a);
-    if (a->gfx != GFX_KITTY || !a->wolf_up_w)
+    if (a->gfx != GFX_KITTY)
         return;
     Sbuf b;
     sb_init(&b);
-    for (int f = 0; f < WOLF_FRAMES; f++)
-        kitty_free(&b, FIRST_ID + (unsigned)f);
+    for (int k = 0; k < WOLF_KINDS; k++) {
+        if (!a->wolf_up_w[k])
+            continue;
+        for (int f = 0; f < WOLF_FRAMES; f++)
+            kitty_free(&b, image_id(k, f));
+        a->wolf_up_w[k] = a->wolf_up_h[k] = 0;
+    }
     emit(&b);
     sb_free(&b);
-    a->wolf_up_w = a->wolf_up_h = 0;
 }

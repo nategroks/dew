@@ -29,6 +29,7 @@ typedef struct App {
     size_t sel, scroll;
 
     Wave wave;
+    int length_min;        /* focus length for waves, picked with m */
     unsigned active_id;    /* the task the wave is on (0 = none) */
     char *active_title;    /* heap; NULL when the wave has no task */
     char today[11];
@@ -54,13 +55,13 @@ typedef struct App {
     double msg_until;
     bool msg_warn;
 
-    /* the break wolf in real pixels (wolfview.c) */
+    /* the wolves in real pixels (wolfview.c) */
     GfxMode gfx;          /* braille, kitty or sixel */
     int cell_w, cell_h;   /* pixels per cell; 0 when the terminal doesn't say */
     struct {
         bool show;        /* render() saw the wolf this frame */
         int x_px, row;    /* its left edge in screen pixels, its top screen row */
-        int frame;
+        int frame, kind;
         Rect pane;        /* the Life board it is clipped to */
     } wolf;
     struct {
@@ -68,7 +69,7 @@ typedef struct App {
         unsigned id;
         int row, rows;
     } wolf_prev;          /* what is on screen now */
-    int wolf_up_w, wolf_up_h; /* size of the frames kitty holds (0 = none yet) */
+    int wolf_up_w[WOLF_KINDS], wolf_up_h[WOLF_KINDS]; /* frames kitty holds, per coat (0 = none yet) */
     bool wolf_sync;           /* a synchronized update is open */
 
     Rng fx; /* render jitter and garden placement */

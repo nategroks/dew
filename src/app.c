@@ -176,6 +176,13 @@ static void save_garden(App *a)
     free(path);
 }
 
+/* The config's lengths; waves of other lengths get their breaks scaled from these. */
+static WaveCfg base_cfg(const App *a)
+{
+    return (WaveCfg){a->cfg.focus_min * 60, a->cfg.short_min * 60, a->cfg.long_min * 60,
+                     a->cfg.long_every};
+}
+
 static void save_state(App *a)
 {
     SavedState s;
@@ -188,6 +195,8 @@ static void save_state(App *a)
     s.wall_end = (long long)time(NULL) + (long long)(w.remaining + 0.5);
     rule_format(a->dir.focus_rule, s.rule, sizeof s.rule);
     rule_format(a->cfg.focus_rule, s.base, sizeof s.base);
+    s.length = a->length_min;
+    s.length_base = a->cfg.focus_min;
     s.task = a->active_title; /* borrowed, not freed */
     if (!state_save(a->paths.state_path, &s))
         say(a, true, "Could not save the wave state: %s", strerror(errno));
@@ -488,6 +497,32 @@ static void act_cycle_rule(App *a)
     save_state(a);
 }
 
+/* m: the next wave length (15, 25, 45 and the config's own), breaks scaled to it. A running
+   wave changes too, keeping the time done; lengths it has already run past are skipped. */
+static void act_cycle_length(App *a, double now)
+{
+    int list[WAVE_LENGTHS_MAX], n = wave_lengths(a->cfg.focus_min, list), cur = -1;
+    for (int i = 0; i < n; i++)
+        if (list[i] <= a->length_min)
+            cur = i;
+    for (int k = 1; k <= n; k++) {
+        int len = list[(cur + k + n) % n];
+        if (len == a->length_min)
+            continue;
+        WaveCfg c = wave_scaled(base_cfg(a), len * 60);
+        if (!wave_set_cfg(&a->wave, c, now))
+            continue;
+        a->length_min = len;
+        bool running = a->wave.mode == WAVE_FOCUS || a->wave.mode == WAVE_PAUSED;
+        say(a, false, "%s %d min: %d min breaks, %d min every %d wave%s.",
+            running ? "This wave is now" : "Waves are now", len, c.short_s / 60, c.long_s / 60,
+            c.long_every, c.long_every == 1 ? "" : "s");
+        save_state(a);
+        return;
+    }
+    say(a, false, "This wave has already run longer than the other lengths.");
+}
+
 static void act_abandon(App *a)
 {
     if (!wave_abandon(&a->wave))
@@ -509,6 +544,11 @@ static void restore_wave(App *a)
     if (rule_parse(s.rule, &saved) &&
         (!rule_parse(s.base, &base) || rule_eq(base, a->cfg.focus_rule)))
         director_set_focus_rule(&a->dir, saved);
+    /* so is the length picked with m (and a restored wave's breaks follow it) */
+    if (s.length >= 1 && s.length <= 180 && s.length_base == a->cfg.focus_min) {
+        a->length_min = s.length;
+        wave_set_cfg(&a->wave, wave_scaled(base_cfg(a), s.length * 60), mono_now());
+    }
     if (s.mode == WAVE_IDLE) {
         state_clear(&s);
         return;
@@ -701,6 +741,7 @@ static void on_key(App *a, bool code, wint_t ch)
     case 's': act_stop(a, a->now); break;
     case 'S': act_abandon(a); break;
     case 'r': act_cycle_rule(a); break;
+    case 'm': act_cycle_length(a, a->now); break;
     case 'w': open_garden_view(a); break;
     case '?': a->help = true; break;
     case 'q': a->quit = true; break;
@@ -774,9 +815,8 @@ static int setup(App *a, const char *file)
 
     garden_init(&a->garden);
     load_garden(a);
-    WaveCfg wc = {a->cfg.focus_min * 60, a->cfg.short_min * 60, a->cfg.long_min * 60,
-                  a->cfg.long_every};
-    wave_init(&a->wave, wc);
+    a->length_min = a->cfg.focus_min;
+    wave_init(&a->wave, base_cfg(a));
     a->wave.waves_today = (int)a->garden.n;
     rng_seed(&a->fx, (uint64_t)time(NULL) ^ ((uint64_t)getpid() << 20));
     uint64_t seed = rng_next(&a->fx) | (uint64_t)rng_next(&a->fx) << 32;

@@ -34,11 +34,12 @@ uint32_t rgb_mix(uint32_t a, uint32_t b, double f)
     return rgb(r, g, bl);
 }
 
-/* Newborn -> old: snow, yellow, teal, frost cyan, blue, deep blue, dim gray. */
+/* Newborn -> old: snow, then soft pastels: yellow, green, the frosts, mauve, and dusk. */
 static uint32_t ramp(const uint32_t n[16], int age)
 {
-    static const int AT[] = {0, 2, 4, 8, 16, 30, 60};
-    const uint32_t col[] = {n[6], n[13], n[7], n[8], n[9], n[10], n[2]};
+    static const int AT[] = {0, 1, 2, 4, 8, 16, 30, 60};
+    const uint32_t col[] = {n[6], rgb_mix(n[13], n[6], 0.2), rgb_mix(n[14], n[6], 0.2), n[7],
+                            n[8], n[9], rgb_mix(n[15], n[6], 0.2), rgb_mix(n[15], n[2], 0.55)};
     const int last = (int)(sizeof AT / sizeof *AT) - 1;
     if (age >= AT[last])
         return col[last];
@@ -56,11 +57,14 @@ static uint32_t gray_of(uint32_t c)
 
 void palette_compute(PaletteRGB *p, const uint32_t n[16])
 {
-    /* fleets: the five aurora colors, then the four frost ones; they fade in 4 steps */
+    /* fleets: the five aurora colors, then the four frost ones; born pastel, they deepen in 4 steps */
     const uint32_t tints[LIFE_TINTS] = {0, n[11], n[12], n[13], n[14], n[15], n[7], n[8], n[9], n[10]};
     for (int t = 0; t < LIFE_TINTS; t++)
         for (int b = 0; b < PAL_AGES; b++) {
-            uint32_t c = t == 0 ? ramp(n, AGE_EDGES[b]) : rgb_mix(tints[t], n[3], (b / 2) * 0.12);
+            static const double SOFT[4] = {0.3, 0.12, 0, 0};
+            uint32_t c = t == 0      ? ramp(n, AGE_EDGES[b])
+                       : b / 2 < 3   ? rgb_mix(tints[t], n[6], SOFT[b / 2])
+                                     : rgb_mix(tints[t], n[3], 0.25);
             p->life[t][b] = c;
             p->gray[t][b] = gray_of(c);
         }
@@ -74,6 +78,7 @@ void palette_compute(PaletteRGB *p, const uint32_t n[16])
     p->bg = n[0];
     p->band = rgb_mix(n[0], n[1], 0.55);
     p->sel_bg = n[1];
+    p->stripe = rgb_mix(n[0], n[1], 0.4);
     p->foam[0] = n[6];
     p->foam[1] = n[4];
     p->foam[2] = n[8];
@@ -82,10 +87,14 @@ void palette_compute(PaletteRGB *p, const uint32_t n[16])
     p->river[1] = n[9];
     p->river[2] = n[8];
     p->river[3] = n[7];
-    p->wolf[0] = n[6];
-    p->wolf[1] = n[4];
-    p->wolf[2] = n[11];
-    p->wolf[3] = n[3];
+    for (int k = 0; k < WOLF_KINDS; k++)
+        for (int z = 0; z < WOLF_ZONES; z++) {
+            double along = (z + 0.5) / WOLF_ZONES;
+            p->wolf[k][z][PX_SNOW - 1] = wolf_rgb(n, k, ART_SNOW, along);
+            p->wolf[k][z][PX_SHADE - 1] = wolf_rgb(n, k, ART_FROST, along);
+            p->wolf[k][z][PX_EYE - 1] = wolf_rgb(n, k, ART_EYE, along);
+            p->wolf[k][z][PX_DARK - 1] = n[3]; /* the mouth, visible on the dark board */
+        }
     p->glyph[0] = n[6];
     p->glyph[1] = n[8];
     p->glyph[2] = n[7];

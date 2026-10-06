@@ -36,7 +36,19 @@ typedef struct {
     bool long_break;
 } WaveSnap;
 
+#define WAVE_LENGTHS_MAX 4
+
+/* The wave lengths to pick from, in minutes: 15, 25 and 45, plus the config's own focus
+   length if it is another. Sorted; returns how many. */
+int wave_lengths(int config_min, int out[WAVE_LENGTHS_MAX]);
+/* base, with focus_s and both breaks scaled by focus_s / base.focus_s, in whole minutes (>= 1). */
+WaveCfg wave_scaled(WaveCfg base, int focus_s);
+
 void wave_init(Wave *w, WaveCfg cfg);
+/* New lengths. A running or paused wave keeps the time it has done and runs to the new
+   focus length; false, changing nothing, when it has already run that long. A break keeps
+   its length; the next one uses the new lengths. */
+bool wave_set_cfg(Wave *w, WaveCfg cfg, double now);
 bool wave_start(Wave *w, double now);
 bool wave_pause(Wave *w, double now);
 bool wave_resume(Wave *w, double now);

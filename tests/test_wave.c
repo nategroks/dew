@@ -111,8 +111,87 @@ static void test_restore_late(void)
     CHECK_INT(wave_remaining(&b, 0), 1000);
 }
 
+static void test_scaled_breaks(void)
+{
+    WaveCfg c = wave_scaled(CFG, 15 * 60); /* 25/5/15 scaled to 15: 3 and 9 minute breaks */
+    CHECK_INT(c.focus_s, 900);
+    CHECK_INT(c.short_s, 180);
+    CHECK_INT(c.long_s, 540);
+    CHECK_INT(c.long_every, 4);
+    c = wave_scaled(CFG, 45 * 60);
+    CHECK_INT(c.focus_s, 2700);
+    CHECK_INT(c.short_s, 540);
+    CHECK_INT(c.long_s, 1620);
+    c = wave_scaled(CFG, 25 * 60);
+    CHECK_INT(c.short_s, 300);
+    CHECK_INT(c.long_s, 900);
+    WaveCfg tiny = {.focus_s = 3000, .short_s = 60, .long_s = 120, .long_every = 2};
+    c = wave_scaled(tiny, 15 * 60); /* whole minutes, never under one */
+    CHECK_INT(c.short_s, 60);
+    CHECK_INT(c.long_s, 60);
+
+    int l[4];
+    CHECK_INT(wave_lengths(25, l), 3);
+    CHECK_INT(l[0], 15);
+    CHECK_INT(l[1], 25);
+    CHECK_INT(l[2], 45);
+    CHECK_INT(wave_lengths(30, l), 4); /* the config's own length joins them, in order */
+    CHECK_INT(l[2], 30);
+    CHECK_INT(l[3], 45);
+    CHECK_INT(wave_lengths(90, l), 4);
+    CHECK_INT(l[3], 90);
+}
+
+static void test_set_length(void)
+{
+    WaveCfg c45 = wave_scaled(CFG, 2700), c15 = wave_scaled(CFG, 900);
+    Wave w;
+    wave_init(&w, CFG);
+    CHECK(wave_set_cfg(&w, c45, 0)); /* idle: the next wave */
+    wave_start(&w, 100);
+    CHECK_INT(wave_remaining(&w, 100), 2700);
+
+    /* running: keeps the time done, runs to the new length */
+    wave_init(&w, CFG);
+    wave_start(&w, 0);
+    CHECK(wave_set_cfg(&w, c45, 600));
+    CHECK_INT(wave_remaining(&w, 600), 2100);
+    CHECK_INT(wave_tick(&w, 2699), WEV_NONE);
+    CHECK_INT(wave_tick(&w, 2700), WEV_FOCUS_DONE);
+    CHECK_INT(wave_remaining(&w, 2700), 540); /* the break fits the new length */
+
+    /* too late to shorten: nothing changes */
+    wave_init(&w, CFG);
+    wave_start(&w, 0);
+    CHECK(!wave_set_cfg(&w, c15, 1000));
+    CHECK_INT(wave_remaining(&w, 1000), 500);
+    CHECK_INT(w.cfg.focus_s, 1500);
+    CHECK(wave_set_cfg(&w, c15, 800)); /* 100 s to go */
+    CHECK_INT(wave_remaining(&w, 800), 100);
+
+    /* paused */
+    wave_init(&w, CFG);
+    wave_start(&w, 0);
+    wave_pause(&w, 1000);
+    CHECK(wave_set_cfg(&w, c45, 5000));
+    CHECK_INT(wave_remaining(&w, 9000), 1700);
+    CHECK(!wave_set_cfg(&w, c15, 5000)); /* 1000 s done: past 15 minutes */
+    CHECK_INT(wave_remaining(&w, 9000), 1700);
+
+    /* in a break: the break keeps going, the next wave is the new length */
+    wave_init(&w, CFG);
+    wave_start(&w, 0);
+    wave_finish(&w, 1500);
+    CHECK(wave_set_cfg(&w, c45, 1600));
+    CHECK_INT(wave_remaining(&w, 1600), 200);
+    wave_start(&w, 1700);
+    CHECK_INT(wave_remaining(&w, 1700), 2700);
+}
+
 void suite_wave(void)
 {
+    test_scaled_breaks();
+    test_set_length();
     test_happy_path();
     test_pause_resume();
     test_long_break_cadence();

@@ -1,12 +1,64 @@
 #include "wave.h"
 
+#include <math.h>
 #include <string.h>
+
+int wave_lengths(int config_min, int out[WAVE_LENGTHS_MAX])
+{
+    static const int PRESETS[] = {15, 25, 45};
+    int n = 0;
+    bool placed = false;
+    for (int i = 0; i < 3; i++) {
+        if (!placed && config_min <= PRESETS[i]) {
+            placed = true;
+            if (config_min < PRESETS[i])
+                out[n++] = config_min;
+        }
+        out[n++] = PRESETS[i];
+    }
+    if (!placed)
+        out[n++] = config_min;
+    return n;
+}
+
+static int scale_min(int s, int focus_s, int base_focus_s)
+{
+    long m = lround((double)s * focus_s / base_focus_s / 60.0);
+    return (int)(m < 1 ? 1 : m) * 60;
+}
+
+WaveCfg wave_scaled(WaveCfg base, int focus_s)
+{
+    WaveCfg c = base;
+    c.focus_s = focus_s;
+    if (base.focus_s > 0) {
+        c.short_s = scale_min(base.short_s, focus_s, base.focus_s);
+        c.long_s = scale_min(base.long_s, focus_s, base.focus_s);
+    }
+    return c;
+}
 
 void wave_init(Wave *w, WaveCfg cfg)
 {
     memset(w, 0, sizeof *w);
     w->cfg = cfg;
     w->mode = WAVE_IDLE;
+}
+
+bool wave_set_cfg(Wave *w, WaveCfg cfg, double now)
+{
+    double change = cfg.focus_s - w->cfg.focus_s;
+    if (w->mode == WAVE_FOCUS) {
+        if (w->end + change <= now)
+            return false;
+        w->end += change;
+    } else if (w->mode == WAVE_PAUSED) {
+        if (w->remaining + change <= 0)
+            return false;
+        w->remaining += change;
+    }
+    w->cfg = cfg;
+    return true;
 }
 
 static void begin_break(Wave *w, double from)

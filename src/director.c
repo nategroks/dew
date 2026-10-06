@@ -11,6 +11,8 @@
 #define SWEEP_SPEED 3.0    /* board cells per frame */
 #define EXCITE_FRAMES 150  /* idle fast-forward after a fleet */
 #define HIGHLIFE_FRAMES 180
+#define RUN_SPEED_GALLOP 2.6 /* task wolves, board cells per frame */
+#define RUN_SPEED_TROT 1.9
 
 static int imin(int a, int b) { return a < b ? a : b; }
 static int imax(int a, int b) { return a > b ? a : b; }
@@ -68,6 +70,18 @@ static void soup(Director *d, int x0, int y0, int w, int h, double density, uint
                 life_set(&d->life, x, y, CELL_ON, tint, 0);
 }
 
+/* Soup in side-by-side patches of different colors (tint 0 is the age ramp). Newborns take
+   their neighbors' color, so the patches spread, meet and mix. */
+static void color_soup(Director *d, int x0, int y0, int w, int h, double density)
+{
+    int patch = imax(6, w / 5);
+    uint8_t t = (uint8_t)rng_range(&d->rng, LIFE_TINTS);
+    for (int x = x0; x < x0 + w; x += patch) {
+        soup(d, x, y0, imin(patch, x0 + w - x), h, density, t);
+        t = (uint8_t)((t + 1 + rng_range(&d->rng, LIFE_TINTS - 1)) % LIFE_TINTS); /* never twice */
+    }
+}
+
 static int keepalive(const Life *l)
 {
     return imax(8, l->w * l->h / 100);
@@ -91,7 +105,7 @@ void director_on_wave_start(Director *d)
     life_set_rule(l, d->focus_rule);
     int band = imin(20, imax(4, l->h / 2));
     int margin = l->w / 16;
-    soup(d, margin, rng_range(&d->rng, imax(1, l->h - band)), l->w - 2 * margin, band, 0.34, 0);
+    color_soup(d, margin, rng_range(&d->rng, imax(1, l->h - band)), l->w - 2 * margin, band, 0.34);
 }
 
 void director_set_focus_rule(Director *d, Rule r)
@@ -117,7 +131,7 @@ void director_on_resume(Director *d)
     d->mood = MOOD_FOCUS;
     Life *l = &d->life;
     if (life_population(l) < keepalive(l))
-        soup(d, l->w / 6, l->h / 4, l->w * 2 / 3, l->h / 2, 0.3, 0);
+        color_soup(d, l->w / 6, l->h / 4, l->w * 2 / 3, l->h / 2, 0.3);
 }
 
 static void fleet(Director *d)
@@ -153,11 +167,20 @@ static void fleet(Director *d)
     }
 }
 
+static bool wolf_fits(const Life *l)
+{
+    return l->w >= WOLF_W + 8 && l->h >= WOLF_H + 4;
+}
+
 void director_on_task_done(Director *d)
 {
     fleet(d);
     if (d->mood == MOOD_IDLE && !d->sweeping)
         d->excite = EXCITE_FRAMES;
+    if (d->run_queued < RUN_QUEUE) { /* the snow wolf is the river's; the others take turns */
+        d->run_queue[d->run_queued++] = (uint8_t)(1 + d->wolf_next % (WOLF_KINDS - 1));
+        d->wolf_next++;
+    }
 }
 
 static void burst(Director *d)
@@ -225,10 +248,28 @@ double director_river_y(const Director *d, int x)
     return y;
 }
 
-bool director_wolf(const Director *d, int *x, int *y, int *frame)
+static bool runner_spot(const Director *d, WolfSpot *w)
 {
     const Life *l = &d->life;
-    if (!d->sweeping || d->river_fade > 0 || l->w < WOLF_W + 8 || l->h < WOLF_H + 4)
+    if (!d->run.on || d->sweeping || !wolf_fits(l))
+        return false;
+    int x = (int)floor(d->run.x);
+    if (x + WOLF_W <= 0 || x >= l->w)
+        return false;
+    bool trot = wolf_cycle(d->run.kind) == 1;
+    w->x = x;
+    w->y = (int)lround(d->run.y01 * (l->h - WOLF_H));
+    w->frame = (int)(((d->frame - d->run.start) / (trot ? 3 : 2)) % WOLF_FRAMES);
+    w->kind = d->run.kind;
+    return true;
+}
+
+bool director_wolf(const Director *d, WolfSpot *w)
+{
+    const Life *l = &d->life;
+    if (!d->sweeping)
+        return runner_spot(d, w);
+    if (d->river_fade > 0 || !wolf_fits(l))
         return false;
     int wx = (int)d->sweep_x - WOLF_W + 4; /* nose at the river's leading edge */
     if (wx + WOLF_W <= 0 || wx >= l->w)
@@ -242,10 +283,36 @@ bool director_wolf(const Director *d, int *x, int *y, int *frame)
         wy = l->h - WOLF_H;
     if (wy < 0)
         wy = 0;
-    *x = wx;
-    *y = wy;
-    *frame = (int)((d->frame / 2) % WOLF_FRAMES);
+    w->x = wx;
+    w->y = wy;
+    w->frame = (int)((d->frame / 2) % WOLF_FRAMES);
+    w->kind = WOLF_SNOW;
     return true;
+}
+
+/* Task wolves run one at a time, never with the river; the river waits for one that is out. */
+static void advance_run(Director *d)
+{
+    Life *l = &d->life;
+    if (!wolf_fits(l)) {
+        d->run.on = false;
+        d->run_queued = 0;
+        return;
+    }
+    if (d->run.on) {
+        d->run.x += wolf_cycle(d->run.kind) == 1 ? RUN_SPEED_TROT : RUN_SPEED_GALLOP;
+        if (d->run.x >= l->w)
+            d->run.on = false;
+        return;
+    }
+    if (d->run_queued == 0 || d->sweeping || d->pending_sweep > 0)
+        return;
+    d->run.on = true;
+    d->run.kind = d->run_queue[0];
+    memmove(d->run_queue, d->run_queue + 1, (size_t)--d->run_queued);
+    d->run.x = -WOLF_W;
+    d->run.y01 = rng_unit(&d->rng);
+    d->run.start = d->frame;
 }
 
 static void brain_seed(Director *d)
@@ -305,8 +372,10 @@ void director_frame(Director *d)
     d->frame++;
     if (d->tear > 0)
         d->tear--;
-    if (d->pending_sweep > 0 && --d->pending_sweep == 0)
+    if (d->pending_sweep > 0 && !d->run.on && --d->pending_sweep == 0)
         start_sweep(d, THEN_BRAIN);
+    if (!d->sweeping)
+        advance_run(d);
     if (d->sweeping) {
         advance_sweep(d);
         return;
@@ -317,7 +386,7 @@ void director_frame(Director *d)
             life_step(l);
         if (d->frame % 60 == 0 && life_population(l) < keepalive(l))
             soup(d, rng_range(&d->rng, imax(1, l->w - 24)), rng_range(&d->rng, imax(1, l->h - 20)),
-                 24, 20, 0.3, 0);
+                 24, 20, 0.3, (uint8_t)rng_range(&d->rng, LIFE_TINTS));
         if (d->highlife_left > 0 && --d->highlife_left == 0)
             life_set_rule(l, d->focus_rule);
         if (d->frame % 400 == 0 && rule_eq(d->focus_rule, rule_conway()) &&
@@ -352,5 +421,5 @@ void director_frame(Director *d)
 bool director_animating(const Director *d)
 {
     return d->mood != MOOD_IDLE || d->sweeping || d->tear > 0 || d->excite > 0 ||
-           d->pending_sweep > 0;
+           d->pending_sweep > 0 || d->run.on || d->run_queued > 0;
 }
