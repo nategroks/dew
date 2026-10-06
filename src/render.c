@@ -247,12 +247,19 @@ static void draw_list(App *a)
         fill(y, in.x, in.w);
         mvaddstr(y, in.x, active ? "▶" : " ");
         mvaddstr(y, in.x + 2, t->done ? "[x]" : "[ ]");
+        if (t->rune >= 0 && t->rune < RUNE_ART_COUNT) { /* the task's rune, in its color */
+            char glyph[5] = "";
+            glyph[utf8_encode(RUNE_ART[t->rune].cp, glyph)] = '\0';
+            pen(t->done ? p->ui[UI_DIM] : p->rune[t->rune], bg, at);
+            mvaddstr(y, in.x + 6, glyph);
+            pen(fg, bg, at);
+        }
 
         char count[24] = "";
         if (t->waves > 0)
             snprintf(count, sizeof count, "%s%d", sprite_text(a->cfg.sprite), t->waves);
         int cw = count[0] ? text_width(count) : 0;
-        put_text(y, in.x + 6, in.w - 6 - (cw ? cw + 1 : 0), t->title, 0);
+        put_text(y, in.x + 8, in.w - 8 - (cw ? cw + 1 : 0), t->title, 0);
         if (cw) {
             pen(p->ui[UI_COUNT], bg, at);
             put_text(y, in.x + in.w - cw, cw, count, 0);
@@ -331,8 +338,21 @@ static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director
             a->wolf.kind = ws.kind;
             a->wolf.x_px = in.x * a->cell_w + ws.x * a->cell_w / 2;
             a->wolf.row = in.y + ws.y / 4;
+            a->wolf.rune = ws.rune;
+            a->wolf.rune_x_px = in.x * a->cell_w + (ws.x + WOLF_W + RUNE_GAP) * a->cell_w / 2;
+            a->wolf.rune_row = in.y + (ws.y + 2) / 4;
             a->wolf.pane = in;
-        } else
+        } else {
+            for (int y = 0; ws.rune != RUNE_NONE && y < RUNE_ART_H; y++) /* the rune it chases */
+                for (int x = 0; x < RUNE_ART_W; x++) {
+                    int bx = ws.x + WOLF_W + RUNE_GAP + x, by = ws.y + 2 + y;
+                    if (!rune_pixel(ws.rune, x, y) || bx < 0 || by < 0 || bx >= l->w || by >= l->h ||
+                        bx / 2 >= cols || by / 4 >= rows)
+                        continue;
+                    int ci = (by / 4) * cols + bx / 2;
+                    obits[ci] |= braille_bit(bx & 1, by & 3);
+                    ocolor[ci] = p->rune[ws.rune];
+                }
             for (int y = 0; y < WOLF_H; y++)
                 for (int x = 0; x < WOLF_W; x++) {
                     int px = wolf_pixel(ws.kind, ws.frame, x, y), bx = ws.x + x, by = ws.y + y;
@@ -349,6 +369,7 @@ static void draw_board(App *a, const Life *l, Rect in, bool idle, const Director
                     if (rank > wrank[ci])
                         wrank[ci] = (uint8_t)rank;
                 }
+        }
     }
 
     for (int cy = 0; cy < rows; cy++) {
@@ -460,8 +481,15 @@ static void draw_note(App *a)
 {
     const PaletteRGB *p = &a->rgb;
     Rect r = a->lay.note;
-    draw_box(a, r, "note", NULL, NULL);
     Task *t = doc_view_at(&a->doc, a->sel, NULL);
+    char label[80] = "note";
+    if (t && t->rune >= 0 && t->rune < RUNE_ART_COUNT) { /* "note · ᚱ raido, journey" */
+        char glyph[5] = "";
+        glyph[utf8_encode(RUNE_ART[t->rune].cp, glyph)] = '\0';
+        snprintf(label, sizeof label, "note · %s %s, %s", glyph, rune_name(t->rune),
+                 RUNE_ART[t->rune].meaning);
+    }
+    draw_box(a, r, label, NULL, NULL);
     if (!t)
         return;
     if (!t->note) {
@@ -556,6 +584,7 @@ static void draw_help(App *a)
         {"s", "finish the wave now, or end the break"},
         {"S", "abandon the wave (not counted)"},
         {"m", "wave length: 15, 25 or 45 min"},
+        {"R", "give the task the next rune"},
         {"r", "next simulation for waves"},
         {"w", "today's garden"},
         {"q", "quit (a running wave resumes next time)"},

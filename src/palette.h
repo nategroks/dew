@@ -3,6 +3,7 @@
 
 #include "garden.h"
 #include "life.h"
+#include "runes.h"
 #include "sprite.h"
 
 #include <stdint.h>
@@ -36,6 +37,7 @@ typedef struct {
     /* braille wolves: coat, tail/body/head, then PX_SNOW-1 .. PX_DARK-1 (snow, shade, eye, dark) */
     uint32_t wolf[WOLF_KINDS][WOLF_ZONES][4];
     uint32_t glyph[5];
+    uint32_t rune[RUNE_ART_COUNT]; /* each task rune's color */
     uint32_t ui[UI_N];
 } PaletteRGB;
 

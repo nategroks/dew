@@ -1,5 +1,6 @@
 #include "taskfile.h"
 
+#include "runes.h"
 #include "util.h"
 
 #include <stdio.h>
@@ -94,6 +95,13 @@ static int parse_task_line(TaskDoc *d, Section *s, const char *line, size_t line
                 break;
             }
             t->waves = v;
+        } else if (strncmp(tok, "rune=", 5) == 0) {
+            t->rune = rune_find(tok + 5);
+            if (t->rune == RUNE_NONE) {
+                fail(err, lineno, "rune must be an Elder Futhark rune like fehu, algiz or perthro");
+                rc = -1;
+                break;
+            }
         } else if (strncmp(tok, "done=", 5) == 0) {
             if (!valid_date(tok + 5)) {
                 fail(err, lineno, "done must be a date like 2026-10-02");
@@ -197,12 +205,15 @@ static void put_task(Sbuf *b, const Task *t)
     sb_puts(b, t->done ? "- [x] " : "- [ ] ");
     sb_puts(b, t->title);
     /* A title ending in "-->" gets an empty dew comment so it can't be misread as one. */
-    if (t->waves > 0 || t->done_date[0] || t->extra_meta || ends_with(t->title, META_CLOSE)) {
+    bool rune = t->rune >= 0 && t->rune < RUNE_ART_COUNT;
+    if (t->waves > 0 || t->done_date[0] || rune || t->extra_meta || ends_with(t->title, META_CLOSE)) {
         sb_puts(b, " " META_OPEN);
         if (t->waves > 0)
             sb_printf(b, " waves=%d", t->waves);
         if (t->done_date[0])
             sb_printf(b, " done=%s", t->done_date);
+        if (rune)
+            sb_printf(b, " rune=%s", rune_name(t->rune));
         if (t->extra_meta)
             sb_printf(b, " %s", t->extra_meta);
         sb_puts(b, " " META_CLOSE);

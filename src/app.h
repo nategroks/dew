@@ -7,6 +7,7 @@
 #include "layout.h"
 #include "lineedit.h"
 #include "palette.h"
+#include "runes.h"
 #include "store.h"
 #include "tasks.h"
 #include "wave.h"
@@ -62,13 +63,15 @@ typedef struct App {
         bool show;        /* render() saw the wolf this frame */
         int x_px, row;    /* its left edge in screen pixels, its top screen row */
         int frame, kind;
+        int rune, rune_x_px, rune_row; /* the rune it chases (RUNE_NONE), where */
         Rect pane;        /* the Life board it is clipped to */
     } wolf;
     struct {
-        bool shown;
-        unsigned id;
-        int row, rows;
+        bool shown, rune_shown;
+        unsigned id, rune_id;
+        int row, rows;    /* the rows both cover */
     } wolf_prev;          /* what is on screen now */
+    int rune_up_w[RUNE_ART_COUNT], rune_up_h[RUNE_ART_COUNT]; /* rune images kitty holds */
     int wolf_up_w[WOLF_KINDS], wolf_up_h[WOLF_KINDS]; /* frames kitty holds, per coat (0 = none yet) */
     bool wolf_sync;           /* a synchronized update is open */
 

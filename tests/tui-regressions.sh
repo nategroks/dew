@@ -43,6 +43,6 @@ launch xterm-256color ""
 printf '# Today\n- [ ] alpha <!-- dew waves=x -->\n\n# Backlog\n' > $T/data/dew/tasks.md.new && mv $T/data/dew/tasks.md.new $T/data/dew/tasks.md
 sleep 1.5; $S send-keys x; sleep 0.4
 LINE=$($S capture-pane -p | sed -n '2p')
-[[ "$LINE" == *'[ ] alpha'* ]] && verdict "#8 no silent change while file is broken" yes || verdict "#8 no silent change while file is broken" no
+[[ "$LINE" == *'[ ] '*'alpha'* ]] && verdict "#8 no silent change while file is broken" yes || verdict "#8 no silent change while file is broken" no
 
 $S kill-server 2>/dev/null

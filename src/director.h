@@ -18,10 +18,13 @@ typedef enum { MOOD_IDLE, MOOD_FOCUS, MOOD_PAUSED, MOOD_BREAK } Mood;
 typedef enum { THEN_BRAIN, THEN_GARDEN } SweepThen;
 
 #define RUN_QUEUE 4 /* task wolves waiting for their turn */
+#define RUNE_GAP 3  /* board cells between a wolf's nose and the rune it chases */
 
-/* A wolf on the board: top-left in board cells, run-cycle frame, coat (WOLF_SNOW ...). */
+/* A wolf on the board: top-left in board cells, run-cycle frame, coat (WOLF_SNOW ...), and the
+   task's rune it chases (RUNE_NONE, or an index into RUNE_ART), which runs RUNE_GAP cells ahead
+   of its nose, RUNE_ART_W x RUNE_ART_H cells, at height y + 2. */
 typedef struct {
-    int x, y, frame, kind;
+    int x, y, frame, kind, rune;
 } WolfSpot;
 
 typedef struct {
@@ -44,10 +47,13 @@ typedef struct {
         bool on;
         double x;   /* left edge, board cells; starts off the left side */
         double y01; /* height: 0 top .. 1 bottom, so it survives a resize */
-        int kind;
+        int kind, rune;
         long start; /* the frame it set off */
     } run;          /* a task wolf crossing the board */
-    uint8_t run_queue[RUN_QUEUE];
+    struct {
+        uint8_t kind;
+        int8_t rune;
+    } run_queue[RUN_QUEUE];
     int run_queued;
     int wolf_next;  /* rotates the task wolves' coats */
     Rule focus_rule; /* what focus waves run; Conway unless the user picks another */
@@ -62,7 +68,7 @@ void director_resize(Director *d, int w, int h);
 void director_on_wave_start(Director *d);
 void director_on_pause(Director *d);
 void director_on_resume(Director *d);
-void director_on_task_done(Director *d);
+void director_on_task_done(Director *d, int rune); /* the task's rune, or RUNE_NONE */
 void director_on_wave_finish(Director *d);
 void director_on_break_end(Director *d);
 void director_on_abandon(Director *d);

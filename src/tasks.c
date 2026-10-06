@@ -1,5 +1,6 @@
 #include "tasks.h"
 
+#include "runes.h"
 #include "util.h"
 
 #include <stdio.h>
@@ -108,6 +109,7 @@ static void task_new(TaskDoc *d, Task *t, const char *title)
     memset(t, 0, sizeof *t);
     t->id = d->next_id++;
     t->title = clean_title(title);
+    t->rune = RUNE_NONE;
 }
 
 Task *section_push_task(TaskDoc *d, Section *s, const char *title)
@@ -296,6 +298,50 @@ void task_toggle_done(Task *t, const char *today)
         set_date(t->done_date, today);
     else
         t->done_date[0] = '\0';
+}
+
+void doc_next_rune(TaskDoc *d, Task *t)
+{
+    bool taken[RUNE_ART_COUNT] = {false};
+    for (size_t i = 0; i < doc_view_count(d); i++) {
+        const Task *o = doc_view_at(d, i, NULL);
+        if (o != t && o->rune >= 0 && o->rune < RUNE_ART_COUNT)
+            taken[o->rune] = true;
+    }
+    int from = t->rune < 0 ? RUNE_ART_COUNT - 1 : t->rune;
+    for (int k = 1; k < RUNE_ART_COUNT; k++)
+        if (!taken[(from + k) % RUNE_ART_COUNT]) {
+            t->rune = (from + k) % RUNE_ART_COUNT;
+            return;
+        }
+    t->rune = (from + 1) % RUNE_ART_COUNT;
+}
+
+int doc_assign_runes(TaskDoc *d, unsigned start)
+{
+    int used[RUNE_ART_COUNT] = {0}, given = 0;
+    size_t n = doc_view_count(d);
+    for (size_t i = 0; i < n; i++) {
+        int r = doc_view_at(d, i, NULL)->rune;
+        if (r >= 0 && r < RUNE_ART_COUNT)
+            used[r]++;
+    }
+    for (size_t i = 0; i < n; i++) {
+        Task *t = doc_view_at(d, i, NULL);
+        if (t->rune >= 0 && t->rune < RUNE_ART_COUNT)
+            continue;
+        int best = -1;
+        for (int k = 0; k < RUNE_ART_COUNT; k++) {
+            int r = (int)((start + (unsigned)k) % RUNE_ART_COUNT);
+            if (best < 0 || used[r] < used[best])
+                best = r;
+        }
+        t->rune = best;
+        used[best]++;
+        start = (unsigned)best + 1; /* the next one picks on from here */
+        given++;
+    }
+    return given;
 }
 
 bool doc_delete(TaskDoc *d, unsigned id)

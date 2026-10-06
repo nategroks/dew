@@ -23,6 +23,7 @@ typedef struct {
     bool done;
     int waves;
     char done_date[11]; /* "YYYY-MM-DD" or "" */
+    int rune;           /* index into RUNE_ART, or RUNE_NONE (-1) until one is given */
     char *extra_meta;   /* unknown "key=value" tokens, space-separated, or NULL */
 } Task;
 
@@ -75,6 +76,16 @@ Task *doc_add(TaskDoc *d, ListId l, const char *title); /* at the end of the lis
 void task_set_title(Task *t, const char *title);
 void task_set_note(Task *t, const char *note); /* NULL or "" clears */
 void task_toggle_done(Task *t, const char *today);
+/* t's next rune in futhark order that no other Today or Backlog task has (just the next one
+   when every rune is taken). */
+void doc_next_rune(TaskDoc *d, Task *t);
+
+/*
+ * Gives every Today and Backlog task that has no rune one, spreading them:
+ * each takes a rune the fewest of those tasks have, the first such at or
+ * after `start` in futhark order. Returns how many it gave.
+ */
+int doc_assign_runes(TaskDoc *d, unsigned start);
 bool doc_delete(TaskDoc *d, unsigned id);
 bool doc_move_list(TaskDoc *d, unsigned id);             /* to the end of the other list */
 bool doc_reorder(TaskDoc *d, unsigned id, int delta);    /* +1 down, -1 up; false at an edge */

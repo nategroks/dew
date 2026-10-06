@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 static void usage(FILE *f)
 {
@@ -64,6 +66,7 @@ static int cmd_add(int argc, char **argv, const char *file)
         break;
     default:
         doc_add(&d, today ? LIST_TODAY : LIST_BACKLOG, title.buf);
+        doc_assign_runes(&d, (unsigned)time(NULL) ^ (unsigned)getpid());
         if (!tasks_save(p.tasks_path, &d, &st)) {
             fprintf(stderr, "dew: cannot save %s: %s\n", p.tasks_path, strerror(errno));
             rc = 1;

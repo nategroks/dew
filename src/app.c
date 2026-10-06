@@ -211,13 +211,15 @@ static void act_toggle(App *a)
         return;
     Task *t = selected(a);
     bool now_done = false;
+    int rune = RUNE_NONE;
     if (t) {
         task_toggle_done(t, a->today);
         now_done = t->done;
+        rune = t->rune;
     }
     mut_end(a, lk, t != NULL);
     if (now_done)
-        director_on_task_done(&a->dir);
+        director_on_task_done(&a->dir, rune); /* its wolf chases its rune */
 }
 
 static void act_move_list(App *a)
@@ -245,6 +247,36 @@ static void act_reorder(App *a, int delta)
     mut_end(a, lk, moved);
     if (moved)
         select_id(a, id);
+}
+
+/* R: the selected task's next rune. */
+static void act_next_rune(App *a)
+{
+    int lk = mut_begin(a);
+    if (lk == MUT_REFUSED)
+        return;
+    Task *t = selected(a);
+    if (t) {
+        doc_next_rune(&a->doc, t);
+        char glyph[5] = "";
+        glyph[utf8_encode(RUNE_ART[t->rune].cp, glyph)] = '\0';
+        say(a, false, "%s %s · %s", glyph, rune_name(t->rune), RUNE_ART[t->rune].meaning);
+    }
+    mut_end(a, lk, t != NULL);
+}
+
+/* Tasks written by hand (or by an older dew) get their runes, and the file keeps them. */
+static void give_runes(App *a)
+{
+    bool runeless = false;
+    for (size_t i = 0; i < doc_view_count(&a->doc) && !runeless; i++)
+        runeless = doc_view_at(&a->doc, i, NULL)->rune == RUNE_NONE;
+    if (!runeless || a->file_broken)
+        return;
+    int lk = mut_begin(a);
+    if (lk == MUT_REFUSED)
+        return;
+    mut_end(a, lk, doc_assign_runes(&a->doc, rng_next(&a->fx)) > 0);
 }
 
 /* The task an edit/delete prompt was opened on, even if tasks.md was reloaded since. */
@@ -278,6 +310,7 @@ static void act_add(App *a, const char *title)
     if (lk == MUT_REFUSED)
         return;
     unsigned id = doc_add(&a->doc, a->add_list, title)->id;
+    doc_assign_runes(&a->doc, rng_next(&a->fx));
     mut_end(a, lk, true);
     select_id(a, id);
 }
@@ -741,6 +774,7 @@ static void on_key(App *a, bool code, wint_t ch)
     case 's': act_stop(a, a->now); break;
     case 'S': act_abandon(a); break;
     case 'r': act_cycle_rule(a); break;
+    case 'R': act_next_rune(a); break;
     case 'm': act_cycle_length(a, a->now); break;
     case 'w': open_garden_view(a); break;
     case '?': a->help = true; break;
@@ -877,6 +911,7 @@ int app_main(const char *tasks_override)
             a->next_check = a->now + 1;
             check_day(a);
             sync_file(a);
+            give_runes(a);
             nudge_reap();
         }
         if (a->now >= a->next_frame) {

@@ -15,6 +15,7 @@ void suite_view(void);
 void suite_rules(void);
 void suite_sprite(void);
 void suite_gfx(void);
+void suite_runes(void);
 
 static const struct {
     const char *name;
@@ -33,6 +34,7 @@ static const struct {
     {"rules", suite_rules},
     {"sprite", suite_sprite},
     {"gfx", suite_gfx},
+    {"runes", suite_runes},
 };
 
 int main(int argc, char **argv)

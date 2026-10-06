@@ -13,7 +13,7 @@ NCURSES_LIBS   := $(shell $(PKG) --libs ncursesw)
 DEW_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -Werror -Isrc \
               -DDEW_VERSION='"$(VERSION)"' $(NCURSES_CFLAGS)
 
-CORE := util rules wolfart sprite gfx tasks taskfile config wave store life patterns garden director \
+CORE := util rules runeart runes wolfart sprite gfx tasks taskfile config wave store life patterns garden director \
         palette braille layout lineedit
 UI   := render app nudge wolfview
 

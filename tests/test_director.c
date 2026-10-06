@@ -1,4 +1,5 @@
 #include "director.h"
+#include "runes.h"
 #include "sprite.h"
 #include "test.h"
 
@@ -83,7 +84,7 @@ static void test_fleet_color(void)
 {
     Director d;
     director_init(&d, 96, 48, 3, NULL);
-    director_on_task_done(&d);
+    director_on_task_done(&d, RUNE_NONE);
     int pop = life_population(&d.life);
     CHECK(pop > 0);
     for (int y = 0; y < 48; y++)
@@ -93,7 +94,7 @@ static void test_fleet_color(void)
     CHECK(d.excite > 0); /* idle: run fast for a while */
     run(&d, 200);
     CHECK_INT(d.excite, 0); /* then the garden comes back */
-    director_on_task_done(&d);
+    director_on_task_done(&d, RUNE_NONE);
     CHECK_INT(d.tint_cursor, 2); /* next fleet, next color */
     director_free(&d);
 }
@@ -198,7 +199,7 @@ static void test_task_wolves(void)
 {
     Director d;
     director_init(&d, 120, 64, 11, NULL);
-    director_on_task_done(&d);
+    director_on_task_done(&d, RUNE_NONE);
     CHECK(director_animating(&d));
     WolfSpot w;
     CHECK(until_wolf(&d, WOLF_SNOW, 60, &w) >= 0);
@@ -220,9 +221,9 @@ static void test_task_wolves(void)
     CHECK(!director_animating(&d)); /* back to the quiet garden */
 
     /* three tasks in a row: a different wolf for each, one after another */
-    director_on_task_done(&d);
-    director_on_task_done(&d);
-    director_on_task_done(&d);
+    director_on_task_done(&d, RUNE_NONE);
+    director_on_task_done(&d, RUNE_NONE);
+    director_on_task_done(&d, RUNE_NONE);
     int kinds[3], n = 0, prev = -1;
     for (int guard = 0; guard < 3000 && n < 3; guard++) {
         int k = director_wolf(&d, &w) ? w.kind : -1;
@@ -241,9 +242,39 @@ static void test_task_wolves(void)
 
     /* no room on the board: no wolf, and nothing keeps animating */
     director_init(&d, 50, 20, 13, NULL);
-    director_on_task_done(&d);
+    director_on_task_done(&d, RUNE_NONE);
     CHECK_INT(until_wolf(&d, -1, 400, &w), -1);
     CHECK(!director_animating(&d));
+    director_free(&d);
+}
+
+static void test_wolf_carries_its_rune(void)
+{
+    Director d;
+    director_init(&d, 160, 64, 14, NULL);
+    director_on_task_done(&d, 7);
+    director_on_task_done(&d, RUNE_NONE);
+    WolfSpot w;
+    /* the rune runs ahead, so it is on the board before the wolf is */
+    CHECK(until_wolf(&d, -1, 10, &w) >= 0);
+    CHECK_INT(w.rune, 7);
+    CHECK(w.x + WOLF_W <= 0);
+    int first = w.kind, guard = 0;
+    while (guard++ < 600 && director_wolf(&d, &w) && w.kind == first) {
+        CHECK_INT(w.rune, 7);
+        director_frame(&d);
+    }
+    CHECK(until_wolf(&d, first, 200, &w) >= 0); /* the next wolf, with no rune */
+    CHECK_INT(w.rune, RUNE_NONE);
+    director_free(&d);
+
+    /* the river's wolf carries none */
+    director_init(&d, 120, 64, 15, NULL);
+    director_on_wave_start(&d);
+    director_on_wave_finish(&d);
+    CHECK(until_wolf(&d, -1, 200, &w) >= 0);
+    CHECK_INT(w.kind, WOLF_SNOW);
+    CHECK_INT(w.rune, RUNE_NONE);
     director_free(&d);
 }
 
@@ -252,7 +283,7 @@ static void test_river_waits_for_task_wolf(void)
     Director d;
     director_init(&d, 120, 64, 12, NULL);
     director_on_wave_start(&d);
-    director_on_task_done(&d);
+    director_on_task_done(&d, RUNE_NONE);
     WolfSpot w;
     CHECK(until_wolf(&d, WOLF_SNOW, 60, &w) >= 0);
     director_on_wave_finish(&d);
@@ -266,7 +297,7 @@ static void test_river_waits_for_task_wolf(void)
     CHECK_INT(w.kind, WOLF_SNOW);
     CHECK(d.sweeping);
     /* a task done while the river crosses sends its wolf after it */
-    director_on_task_done(&d);
+    director_on_task_done(&d, RUNE_NONE);
     for (guard = 0; d.sweeping && guard < 1000; guard++) {
         if (director_wolf(&d, &w))
             CHECK_INT(w.kind, WOLF_SNOW);
@@ -317,9 +348,9 @@ static void test_tiny_and_resizing_boards(void)
     for (size_t s = 0; s < sizeof sizes / sizeof *sizes; s++) {
         Director d;
         director_init(&d, sizes[s][0], sizes[s][1], 7, &g);
-        director_on_task_done(&d);
+        director_on_task_done(&d, RUNE_NONE);
         director_on_wave_start(&d);
-        director_on_task_done(&d);
+        director_on_task_done(&d, RUNE_NONE);
         run(&d, 50);
         director_on_pause(&d);
         run(&d, 20);
@@ -371,8 +402,8 @@ static void test_deterministic(void)
     director_init(&b, 80, 40, 1234, NULL);
     director_on_wave_start(&a);
     director_on_wave_start(&b);
-    director_on_task_done(&a);
-    director_on_task_done(&b);
+    director_on_task_done(&a, RUNE_NONE);
+    director_on_task_done(&b, RUNE_NONE);
     run(&a, 100);
     run(&b, 100);
     CHECK(same_board(&a.life, &b.life));
@@ -389,6 +420,7 @@ void suite_director(void)
     test_river_and_wolf();
     test_task_wolves();
     test_river_waits_for_task_wolf();
+    test_wolf_carries_its_rune();
     test_pause_decays();
     test_abandon();
     test_tiny_and_resizing_boards();

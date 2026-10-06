@@ -1,6 +1,7 @@
 #include "director.h"
 
 #include "patterns.h"
+#include "runes.h"
 #include "sprite.h"
 
 #include <math.h>
@@ -172,15 +173,23 @@ static bool wolf_fits(const Life *l)
     return l->w >= WOLF_W + 8 && l->h >= WOLF_H + 4;
 }
 
-void director_on_task_done(Director *d)
+void director_on_task_done(Director *d, int rune)
 {
     fleet(d);
     if (d->mood == MOOD_IDLE && !d->sweeping)
         d->excite = EXCITE_FRAMES;
     if (d->run_queued < RUN_QUEUE) { /* the snow wolf is the river's; the others take turns */
-        d->run_queue[d->run_queued++] = (uint8_t)(1 + d->wolf_next % (WOLF_KINDS - 1));
+        d->run_queue[d->run_queued].kind = (uint8_t)(1 + d->wolf_next % (WOLF_KINDS - 1));
+        d->run_queue[d->run_queued].rune = (int8_t)(rune >= 0 && rune < RUNE_ART_COUNT ? rune : RUNE_NONE);
+        d->run_queued++;
         d->wolf_next++;
     }
+}
+
+/* How far right of a running wolf's left edge its rune reaches. */
+static int run_reach(int rune)
+{
+    return WOLF_W + (rune == RUNE_NONE ? 0 : RUNE_GAP + RUNE_ART_W);
 }
 
 static void burst(Director *d)
@@ -254,13 +263,14 @@ static bool runner_spot(const Director *d, WolfSpot *w)
     if (!d->run.on || d->sweeping || !wolf_fits(l))
         return false;
     int x = (int)floor(d->run.x);
-    if (x + WOLF_W <= 0 || x >= l->w)
+    if (x + run_reach(d->run.rune) <= 0 || x >= l->w)
         return false;
     bool trot = wolf_cycle(d->run.kind) == 1;
     w->x = x;
     w->y = (int)lround(d->run.y01 * (l->h - WOLF_H));
     w->frame = (int)(((d->frame - d->run.start) / (trot ? 3 : 2)) % WOLF_FRAMES);
     w->kind = d->run.kind;
+    w->rune = d->run.rune;
     return true;
 }
 
@@ -287,6 +297,7 @@ bool director_wolf(const Director *d, WolfSpot *w)
     w->y = wy;
     w->frame = (int)((d->frame / 2) % WOLF_FRAMES);
     w->kind = WOLF_SNOW;
+    w->rune = RUNE_NONE;
     return true;
 }
 
@@ -308,9 +319,10 @@ static void advance_run(Director *d)
     if (d->run_queued == 0 || d->sweeping || d->pending_sweep > 0)
         return;
     d->run.on = true;
-    d->run.kind = d->run_queue[0];
-    memmove(d->run_queue, d->run_queue + 1, (size_t)--d->run_queued);
-    d->run.x = -WOLF_W;
+    d->run.kind = d->run_queue[0].kind;
+    d->run.rune = d->run_queue[0].rune;
+    memmove(d->run_queue, d->run_queue + 1, sizeof *d->run_queue * (size_t)--d->run_queued);
+    d->run.x = -run_reach(d->run.rune);
     d->run.y01 = rng_unit(&d->rng);
     d->run.start = d->frame;
 }

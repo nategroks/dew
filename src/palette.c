@@ -95,6 +95,8 @@ void palette_compute(PaletteRGB *p, const uint32_t n[16])
             p->wolf[k][z][PX_EYE - 1] = wolf_rgb(n, k, ART_EYE, along);
             p->wolf[k][z][PX_DARK - 1] = n[3]; /* the mouth, visible on the dark board */
         }
+    for (int i = 0; i < RUNE_ART_COUNT; i++)
+        p->rune[i] = rune_rgb(n, i);
     p->glyph[0] = n[6];
     p->glyph[1] = n[8];
     p->glyph[2] = n[7];
