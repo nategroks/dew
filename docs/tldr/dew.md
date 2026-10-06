@@ -24,9 +24,13 @@
 
 `<Space>`
 
-- Inside dew, check off the selected task (a wolf runs across the board):
+- Inside dew, check off the selected task (a wolf chases its rune across the board):
 
 `x`
+
+- Inside dew, give the selected task the next free Elder Futhark rune:
+
+`R`
 
 - Inside dew, switch the wave length between 15, 25 and 45 minutes (breaks follow):
 

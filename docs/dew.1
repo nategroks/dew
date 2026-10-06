@@ -34,7 +34,14 @@ finishing a wave sets off a burst and plants a pattern in today's
 and a break floods the board with a river (a white wolf runs along its bank)
 that gives way to Brian's Brain fireworks.
 Each task you finish gets the next of five wolves: frost, ember, aurora,
-shadow and dusk, at a gallop or a trot.
+shadow and dusk, at a gallop or a trot, and the wolf chases the task's
+rune across the board.
+.PP
+Every task wears one of the 24 Elder Futhark runes, in its own soft
+color, next to its title.
+dew hands them out so tasks share a rune only when there are more than
+24; the note box names the selected task's rune and its meaning
+(\[u16B1] raido, journey).
 When several tasks are done at once they run one after another, and the
 river waits for a wolf that is still out.
 Pausing turns the colony gray and lets it die off.
@@ -107,6 +114,9 @@ The choice is remembered until the config's
 .B focus
 changes.
 .TP
+.B R
+Give the task the next rune no other task has.
+.TP
 .B r
 Switch the simulation that waves run to the next one: conway, highlife,
 day & night, seeds, life without death, maze, 2x2, morley, brian's brain,
@@ -161,15 +171,19 @@ running: dew notices within a second and reloads it.
 .PP
 .nf
 # Today
-\- [ ] fix grub theme <!\-\- dew waves=2 \-\->
+\- [ ] fix grub theme <!\-\- dew waves=2 rune=raido \-\->
   A note is the indented lines under a task.
-\- [x] scaffold polymon <!\-\- dew waves=3 done=2026\-10\-02 \-\->
+\- [x] scaffold polymon <!\-\- dew waves=3 done=2026\-10\-02 rune=gebo \-\->
 
 # Backlog
 \- [ ] retheme sddm login
 .fi
 .PP
 Lines dew doesn't understand are kept as they are.
+A task written without a rune gets one within a second.
+.B rune=
+takes any Elder Futhark name and the usual other spellings
+.RB ( perth ", " teiwaz ", " sowelu ", " inguz ", ...).
 Done tasks move to a
 .B # Done
 .I date
